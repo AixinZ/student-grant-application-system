@@ -20,6 +20,7 @@ from .services import create_application
 web = Blueprint("web", __name__)
 
 RETRY_MESSAGE = "We could not process the application right now. Please try again."
+MAX_HISTORY_PAGE = (2**63 - 1) // 20 + 1
 
 
 def _positive_int(value: str | None) -> int:
@@ -27,7 +28,7 @@ def _positive_int(value: str | None) -> int:
         parsed = int(value) if value is not None else 1
     except ValueError:
         return 1
-    return parsed if parsed > 0 else 1
+    return parsed if 0 < parsed <= MAX_HISTORY_PAGE else 1
 
 
 @web.get("/")

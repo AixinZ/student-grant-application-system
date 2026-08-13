@@ -145,6 +145,7 @@ def test_history_pagination_link_preserves_filter_query_state(client):
         "page=abc",
         "page=-2",
         "page=99",
+        f"page={'9' * 100}",
         "decision=PENDING",
     ],
 )
