@@ -1,0 +1,11 @@
+.venv/
+.worktrees/
+.superpowers/
+.env
+instance/
+*.sqlite
+*.sqlite3
+*.log
+__pycache__/
+.pytest_cache/
+.DS_Store

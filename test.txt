@@ -1,0 +1,19 @@
+project a - modula a (3.15), module b, module c - virtual env
+project b - module a (2.1), module c
+
+python 2
+print haha
+
+python 3
+print("haha")
+
+numpy <---- module (2.xx / 1.xx)
+
+global 
+
+
+front end - website UI
+connect to
+back end (run python / database)
+
+LOOSELY COUPLED
