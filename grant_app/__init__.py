@@ -18,5 +18,7 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     db.init_app(app)
     csrf.init_app(app)
     with app.app_context():
+        from . import models  # noqa: F401
+
         db.create_all()
     return app
