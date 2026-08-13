@@ -40,6 +40,18 @@ def test_application_round_trips_persisted_domain_values(app):
         assert saved.approval_engine == "random-v1"
 
 
+def test_application_round_trips_high_precision_probability(app):
+    with app.app_context():
+        probability = Decimal("0.12345678901234567")
+        application = build_application(approval_probability=probability)
+        db.session.add(application)
+        db.session.commit()
+        db.session.expire_all()
+
+        saved = db.session.get(Application, application.id)
+        assert saved.approval_probability == probability
+
+
 def test_application_rejects_lowercase_province(app):
     with app.app_context():
         db.session.add(build_application(province="bc"))

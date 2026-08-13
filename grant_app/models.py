@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import CheckConstraint, DateTime, Integer, Numeric, String
-from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .constants import (
@@ -15,15 +14,33 @@ from .constants import (
 from .extensions import db
 
 
-class ExactNumeric(Numeric):
-    """Preserve SQLite numeric values without exposing binary float tails."""
+PROBABILITY_SCALE = 10**17
+
+
+class ExactProbability(Numeric):
+    """Store a Decimal probability as an exact fixed-scale SQLite integer."""
 
     cache_ok = True
 
-    def result_processor(self, dialect: Dialect, coltype: object):
-        if self.asdecimal and not dialect.supports_native_decimal:
-            return lambda value: Decimal(str(value)) if value is not None else None
-        return super().result_processor(dialect, coltype)
+    def bind_processor(self, dialect):
+        def process(value: Decimal | None) -> int | None:
+            if value is None:
+                return None
+
+            scaled = value * PROBABILITY_SCALE
+            if scaled != scaled.to_integral_value():
+                raise ValueError("approval_probability supports at most 17 decimal places")
+            return int(scaled)
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value: int | None) -> Decimal | None:
+            if value is None:
+                return None
+            return Decimal(value) / PROBABILITY_SCALE
+
+        return process
 
 
 def _allowed_values(values: Iterable[str]) -> str:
@@ -43,7 +60,7 @@ class Application(db.Model):
             name="ck_applications_dependents_range",
         ),
         CheckConstraint(
-            "approval_probability >= 0 AND approval_probability <= 1",
+            f"approval_probability >= 0 AND approval_probability <= {PROBABILITY_SCALE}",
             name="ck_applications_probability_range",
         ),
         CheckConstraint(
@@ -73,7 +90,9 @@ class Application(db.Model):
     marital_status: Mapped[str] = mapped_column(String(20), nullable=False)
     dependents: Mapped[int] = mapped_column(Integer, nullable=False)
     province: Mapped[str] = mapped_column(String(2), nullable=False)
-    approval_probability: Mapped[Decimal] = mapped_column(ExactNumeric(18, 17), nullable=False)
+    approval_probability: Mapped[Decimal] = mapped_column(
+        ExactProbability(18, 17), nullable=False
+    )
     decision: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     approval_engine: Mapped[str] = mapped_column(String(50), nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(
