@@ -9,6 +9,7 @@ from wtforms.validators import (
     InputRequired,
     Length,
     NumberRange,
+    StopValidation,
     ValidationError,
 )
 
@@ -33,8 +34,17 @@ def validate_name(_form, field) -> None:
 
 
 def reject_control_characters(_form, field) -> None:
-    if any(unicodedata.category(char).startswith("C") for char in field.data):
+    if any(
+        unicodedata.category(char).startswith("C")
+        or unicodedata.category(char) in {"Zl", "Zp"}
+        for char in field.data
+    ):
         raise ValidationError("This field contains unsupported characters.")
+
+
+def validate_finite_income(_form, field) -> None:
+    if field.data is not None and not field.data.is_finite():
+        raise StopValidation("Annual income must be a finite number.")
 
 
 def validate_income_decimal_places(_form, field) -> None:
@@ -57,6 +67,7 @@ class StudentApplicationForm(FlaskForm):
         "Annual income (CAD)",
         validators=[
             InputRequired(message="Annual income is required."),
+            validate_finite_income,
             NumberRange(
                 min=Decimal("0"),
                 max=Decimal("999999999.99"),

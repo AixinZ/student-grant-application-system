@@ -75,6 +75,25 @@ def test_rejects_invalid_application_input(field_name, value):
     assert form[field_name].errors
 
 
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+def test_rejects_non_finite_annual_income_without_raising(value):
+    form = StudentApplicationForm(data={**VALID_PAYLOAD, "annual_income_cad": value})
+
+    assert not form.validate()
+    assert form.annual_income_cad.errors
+
+
+@pytest.mark.parametrize("field_name", ["name", "address"])
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029"])
+def test_rejects_unicode_line_separators_in_text_fields(field_name, separator):
+    form = StudentApplicationForm(
+        data={**VALID_PAYLOAD, field_name: f"Alex{separator}Student"}
+    )
+
+    assert not form.validate()
+    assert "This field contains unsupported characters." in form[field_name].errors
+
+
 def test_normalizes_valid_application_into_domain_input():
     form = StudentApplicationForm(
         data={
