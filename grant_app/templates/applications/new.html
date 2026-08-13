@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% macro field_errors(field) %}
+  {% if field.errors %}
+    <div id="{{ field.id }}-error" class="field-error">
+      {% for error in field.errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% block title %}New Application · Student Grant Applications{% endblock %}
+
+{% block content %}
+  <h2>New Application</h2>
+  <p>All fields are required.</p>
+
+  {% if form.errors %}
+    <section id="error-summary" role="alert" aria-labelledby="error-summary-title" tabindex="-1">
+      <h3 id="error-summary-title">Please correct the following errors</h3>
+      <ul>
+        {% for field_name, errors in form.errors.items() %}
+          {% set field = form[field_name] %}
+          {% for error in errors %}
+            <li><a href="#{{ field.id }}">{{ field.label.text }}: {{ error }}</a></li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div>
+      {{ form.name.label }}
+      {{ form.name(required=true, autocomplete="name", aria_invalid="true" if form.name.errors else "false", aria_describedby=form.name.id ~ "-error" if form.name.errors else none) }}
+      {{ field_errors(form.name) }}
+    </div>
+
+    <div>
+      {{ form.annual_income_cad.label }}
+      {{ form.annual_income_cad(required=true, min="0", max="999999999.99", step="0.01", inputmode="decimal", aria_invalid="true" if form.annual_income_cad.errors else "false", aria_describedby="annual-income-help " ~ form.annual_income_cad.id ~ "-error" if form.annual_income_cad.errors else "annual-income-help") }}
+      <p id="annual-income-help">Enter annual income in Canadian dollars (CAD), with up to two decimal places.</p>
+      {{ field_errors(form.annual_income_cad) }}
+    </div>
+
+    <div>
+      {{ form.address.label }}
+      {{ form.address(required=true, autocomplete="street-address", aria_invalid="true" if form.address.errors else "false", aria_describedby=form.address.id ~ "-error" if form.address.errors else none) }}
+      {{ field_errors(form.address) }}
+    </div>
+
+    <div>
+      {{ form.age.label }}
+      {{ form.age(required=true, min="16", max="100", step="1", inputmode="numeric", aria_invalid="true" if form.age.errors else "false", aria_describedby=form.age.id ~ "-error" if form.age.errors else none) }}
+      {{ field_errors(form.age) }}
+    </div>
+
+    <div>
+      {{ form.education_level.label }}
+      {{ form.education_level(required=true, aria_invalid="true" if form.education_level.errors else "false", aria_describedby=form.education_level.id ~ "-error" if form.education_level.errors else none) }}
+      {{ field_errors(form.education_level) }}
+    </div>
+
+    <div>
+      {{ form.marital_status.label }}
+      {{ form.marital_status(required=true, aria_invalid="true" if form.marital_status.errors else "false", aria_describedby=form.marital_status.id ~ "-error" if form.marital_status.errors else none) }}
+      {{ field_errors(form.marital_status) }}
+    </div>
+
+    <div>
+      {{ form.dependents.label }}
+      {{ form.dependents(required=true, min="0", max="20", step="1", inputmode="numeric", aria_invalid="true" if form.dependents.errors else "false", aria_describedby=form.dependents.id ~ "-error" if form.dependents.errors else none) }}
+      {{ field_errors(form.dependents) }}
+    </div>
+
+    <div>
+      {{ form.province.label }}
+      {{ form.province(required=true, aria_invalid="true" if form.province.errors else "false", aria_describedby=form.province.id ~ "-error" if form.province.errors else none) }}
+      {{ field_errors(form.province) }}
+    </div>
+
+    <button type="submit">Submit Application</button>
+  </form>
+{% endblock %}

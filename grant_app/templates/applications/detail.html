@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Application #{{ application.id }} · Student Grant Applications{% endblock %}
+
+{% block content %}
+  <h2>Application #{{ application.id }}</h2>
+  <dl>
+    <dt>Application ID</dt>
+    <dd>{{ application.id }}</dd>
+
+    <dt>Name</dt>
+    <dd>{{ application.name }}</dd>
+
+    <dt>Annual income</dt>
+    <dd>{{ application.annual_income_cad | cad_currency }}</dd>
+
+    <dt>Address</dt>
+    <dd>{{ application.address }}</dd>
+
+    <dt>Age</dt>
+    <dd>{{ application.age }}</dd>
+
+    <dt>Education level</dt>
+    <dd>{{ education_labels[application.education_level] }}</dd>
+
+    <dt>Marital status</dt>
+    <dd>{{ marital_status_labels[application.marital_status] }}</dd>
+
+    <dt>Dependents</dt>
+    <dd>{{ application.dependents }}</dd>
+
+    <dt>Province / Territory</dt>
+    <dd>{{ application.province }}</dd>
+
+    <dt>Approval probability</dt>
+    <dd>{{ application.approval_probability | probability_percent }}</dd>
+
+    <dt>Decision</dt>
+    <dd>{{ application.decision.replace("_", " ").title() }}</dd>
+
+    <dt>Approval engine</dt>
+    <dd>{{ application.approval_engine }}</dd>
+
+    <dt>Submitted</dt>
+    <dd>{{ application.submitted_at | vancouver_datetime }}</dd>
+  </dl>
+
+  <p><a href="/applications">View Application History</a></p>
+  <p><a href="{{ url_for('web.application_new') }}">Create another application</a></p>
+{% endblock %}

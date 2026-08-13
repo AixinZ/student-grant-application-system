@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Student Grant Applications{% endblock %}</title>
+  </head>
+  <body>
+    <a href="#main-content">Skip to main content</a>
+    <header>
+      <h1>Student Grant Applications</h1>
+      <nav aria-label="Primary navigation">
+        <a href="{{ url_for('web.application_new') }}">New Application</a>
+        <a href="/applications">Application History</a>
+      </nav>
+    </header>
+    <main id="main-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section aria-label="Messages">
+            {% for category, message in messages %}
+              <p role="alert" class="message message-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
