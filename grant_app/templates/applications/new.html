@@ -33,7 +33,7 @@
 
     <div>
       {{ form.name.label }}
-      {{ form.name(required=true, autocomplete="name", aria_invalid="true" if form.name.errors else "false", aria_describedby=form.name.id ~ "-error" if form.name.errors else none) }}
+      {{ form.name(required=true, minlength="2", maxlength="100", autocomplete="name", aria_invalid="true" if form.name.errors else "false", aria_describedby=form.name.id ~ "-error" if form.name.errors else none) }}
       {{ field_errors(form.name) }}
     </div>
 
@@ -46,7 +46,7 @@
 
     <div>
       {{ form.address.label }}
-      {{ form.address(required=true, autocomplete="street-address", aria_invalid="true" if form.address.errors else "false", aria_describedby=form.address.id ~ "-error" if form.address.errors else none) }}
+      {{ form.address(required=true, minlength="5", maxlength="200", autocomplete="street-address", aria_invalid="true" if form.address.errors else "false", aria_describedby=form.address.id ~ "-error" if form.address.errors else none) }}
       {{ field_errors(form.address) }}
     </div>
 

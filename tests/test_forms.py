@@ -28,6 +28,8 @@ def application_context(app):
     [
         ("name", "   "),
         ("address", "   "),
+        ("name", "A"),
+        ("address", "1234"),
         ("name", "A" * 101),
         ("name", "Alex2 Student"),
         ("name", "Alex\x00 Student"),
@@ -49,6 +51,8 @@ def application_context(app):
     ids=[
         "blank-name",
         "blank-address",
+        "short-name",
+        "short-address",
         "long-name",
         "digit-in-name",
         "control-character-in-name",

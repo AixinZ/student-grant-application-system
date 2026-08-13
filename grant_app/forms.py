@@ -58,7 +58,11 @@ class StudentApplicationForm(FlaskForm):
         filters=[trim_text],
         validators=[
             DataRequired(message="Name is required."),
-            Length(max=100, message="Name must be at most 100 characters."),
+            Length(
+                min=2,
+                max=100,
+                message="Name must be between 2 and 100 characters.",
+            ),
             reject_control_characters,
             validate_name,
         ],
@@ -81,7 +85,11 @@ class StudentApplicationForm(FlaskForm):
         filters=[trim_text],
         validators=[
             DataRequired(message="Address is required."),
-            Length(max=200, message="Address must be at most 200 characters."),
+            Length(
+                min=5,
+                max=200,
+                message="Address must be between 5 and 200 characters.",
+            ),
             reject_control_characters,
         ],
     )

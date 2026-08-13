@@ -130,6 +130,31 @@ def test_invalid_submission_returns_422_without_evaluation_or_database_row(
         assert db.session.query(Application).count() == 0
 
 
+@pytest.mark.parametrize(
+    ("field_name", "value", "expected_error"),
+    [
+        ("name", "A", b"Name must be between 2 and 100 characters."),
+        ("address", "1234", b"Address must be between 5 and 200 characters."),
+    ],
+    ids=["short-name", "short-address"],
+)
+def test_below_minimum_text_returns_422_without_evaluation_or_database_row(
+    app, client, field_name, value, expected_error
+):
+    engine = FixedEngine()
+    app.config["APPROVAL_ENGINE"] = engine
+
+    response = client.post(
+        "/applications/new", data={**VALID_PAYLOAD, field_name: value}
+    )
+
+    assert response.status_code == 422
+    assert expected_error in response.data
+    assert engine.calls == 0
+    with app.app_context():
+        assert db.session.query(Application).count() == 0
+
+
 def test_approval_failure_returns_general_retry_message_without_database_row(
     app, client
 ):
