@@ -11,7 +11,7 @@ from flask import (
 from sqlalchemy.exc import SQLAlchemyError
 
 from .approval import ApprovalEngineError
-from .constants import EDUCATION_CHOICES, MARITAL_STATUS_CHOICES
+from .constants import Decision, EDUCATION_CHOICES, MARITAL_STATUS_CHOICES
 from .forms import StudentApplicationForm
 from .repository import ApplicationRepository
 from .services import create_application
@@ -20,6 +20,14 @@ from .services import create_application
 web = Blueprint("web", __name__)
 
 RETRY_MESSAGE = "We could not process the application right now. Please try again."
+
+
+def _positive_int(value: str | None) -> int:
+    try:
+        parsed = int(value) if value is not None else 1
+    except ValueError:
+        return 1
+    return parsed if parsed > 0 else 1
 
 
 @web.get("/")
@@ -50,6 +58,23 @@ def application_new():
 
     status = 422 if request.method == "POST" else 200
     return render_template("applications/new.html", form=form), status
+
+
+@web.get("/applications")
+def application_history():
+    name_query = request.args.get("q", "").strip()
+    requested_decision = request.args.get("decision", "")
+    valid_decisions = {decision.value for decision in Decision}
+    decision = requested_decision if requested_decision in valid_decisions else ""
+    page = _positive_int(request.args.get("page"))
+    pagination = ApplicationRepository().list_page(name_query, decision, page)
+
+    return render_template(
+        "applications/history.html",
+        pagination=pagination,
+        name_query=name_query,
+        decision=decision,
+    )
 
 
 @web.get("/applications/<int:application_id>")

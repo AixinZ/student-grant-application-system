@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Application History · Student Grant Applications{% endblock %}
+
+{% block content %}
+  <h2>Application History</h2>
+
+  <form method="get" action="{{ url_for('web.application_history') }}">
+    <label for="q">Student name</label>
+    <input id="q" name="q" type="search" maxlength="100" value="{{ name_query }}">
+
+    <label for="decision">Decision</label>
+    <select id="decision" name="decision">
+      <option value=""{% if not decision %} selected{% endif %}>All</option>
+      <option value="APPROVED"{% if decision == "APPROVED" %} selected{% endif %}>Approved</option>
+      <option value="NOT_APPROVED"{% if decision == "NOT_APPROVED" %} selected{% endif %}>Not Approved</option>
+    </select>
+
+    <button type="submit">Filter applications</button>
+  </form>
+
+  <table>
+    <caption>Submitted grant applications</caption>
+    <thead>
+      <tr>
+        <th scope="col">Application ID</th>
+        <th scope="col">Name</th>
+        <th scope="col">Age</th>
+        <th scope="col">Province / Territory</th>
+        <th scope="col">Annual income</th>
+        <th scope="col">Submitted</th>
+        <th scope="col">Decision</th>
+        <th scope="col">Approval probability</th>
+        <th scope="col">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for application in pagination.items %}
+        <tr class="history-row">
+          <td>{{ application.id }}</td>
+          <td>{{ application.name }}</td>
+          <td>{{ application.age }}</td>
+          <td>{{ application.province }}</td>
+          <td>{{ application.annual_income_cad | cad_currency }}</td>
+          <td>{{ application.submitted_at | vancouver_datetime }}</td>
+          <td>{{ application.decision.replace("_", " ").title() }}</td>
+          <td>{{ application.approval_probability | probability_percent }}</td>
+          <td>
+            <a href="{{ url_for('web.application_detail', application_id=application.id) }}">
+              View details for application {{ application.id }}
+            </a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="9">No applications found.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if pagination.has_prev or pagination.has_next %}
+    <nav aria-label="Application history pages">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('web.application_history', q=name_query, decision=decision, page=pagination.prev_num) }}">Previous</a>
+      {% endif %}
+      {% if pagination.has_next %}
+        <a href="{{ url_for('web.application_history', q=name_query, decision=decision, page=pagination.next_num) }}">Next</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}
