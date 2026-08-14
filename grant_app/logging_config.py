@@ -7,6 +7,11 @@ from flask import Flask
 
 def configure_logging(app: Flask) -> None:
     """Configure a bounded local application log without request payloads."""
+    for existing in list(app.logger.handlers):
+        if getattr(existing, "_student_grants_file_handler", False):
+            app.logger.removeHandler(existing)
+            existing.close()
+
     configured_path = app.config.get("LOG_FILE")
     if app.testing and configured_path is None:
         return
@@ -17,11 +22,6 @@ def configure_logging(app: Flask) -> None:
         else Path(app.instance_path) / "student_grants.log"
     )
     log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    for existing in list(app.logger.handlers):
-        if getattr(existing, "_student_grants_file_handler", False):
-            app.logger.removeHandler(existing)
-            existing.close()
 
     handler = RotatingFileHandler(
         log_path,

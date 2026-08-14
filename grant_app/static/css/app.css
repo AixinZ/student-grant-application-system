@@ -7,6 +7,8 @@
   --color-primary: #174ea6;
   --color-primary-dark: #0b3578;
   --color-focus: #b54708;
+  --color-header-background: #0b3578;
+  --color-header-focus: #ffffff;
   --color-error: #a51d2d;
   --color-error-bg: #fff1f2;
   --color-approved: #17643a;
@@ -61,7 +63,7 @@ a:hover {
 }
 
 .site-header {
-  background: var(--color-primary-dark);
+  background: var(--color-header-background);
   color: #ffffff;
 }
 
@@ -87,6 +89,10 @@ a:hover {
 .site-header a {
   color: #ffffff;
   font-weight: 700;
+}
+
+.site-header :focus-visible {
+  outline-color: var(--color-header-focus);
 }
 
 main {

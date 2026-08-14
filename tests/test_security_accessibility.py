@@ -231,3 +231,69 @@ def test_explicit_test_log_uses_privacy_safe_rotating_handler(tmp_path):
         db.drop_all()
     handler.close()
     application.logger.removeHandler(handler)
+
+
+def test_unconfigured_testing_app_removes_shared_file_handler_and_stops_writes(
+    tmp_path,
+):
+    log_path = tmp_path / "logs" / "student_grants.log"
+    logging_app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test-secret",
+            "WTF_CSRF_ENABLED": False,
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'first.sqlite'}",
+            "LOG_FILE": log_path,
+        }
+    )
+    created_apps = [logging_app]
+
+    try:
+        logging_app.logger.warning("first_app_event")
+        for handler in logging_app.logger.handlers:
+            if getattr(handler, "_student_grants_file_handler", False):
+                handler.flush()
+        contents_after_first_app = log_path.read_text(encoding="utf-8")
+
+        unconfigured_app = create_app(
+            {
+                "TESTING": True,
+                "SECRET_KEY": "test-secret",
+                "WTF_CSRF_ENABLED": False,
+                "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'second.sqlite'}",
+            }
+        )
+        created_apps.append(unconfigured_app)
+        unconfigured_app.logger.warning("testing_event_must_not_reach_file")
+        for handler in unconfigured_app.logger.handlers:
+            if getattr(handler, "_student_grants_file_handler", False):
+                handler.flush()
+
+        assert log_path.read_text(encoding="utf-8") == contents_after_first_app
+        assert not any(
+            getattr(handler, "_student_grants_file_handler", False)
+            for handler in unconfigured_app.logger.handlers
+        )
+    finally:
+        for handler in list(logging_app.logger.handlers):
+            if getattr(handler, "_student_grants_file_handler", False):
+                logging_app.logger.removeHandler(handler)
+                handler.close()
+        for application in created_apps:
+            with application.app_context():
+                db.session.remove()
+                db.drop_all()
+
+
+def test_header_keyboard_focus_uses_high_contrast_override(client):
+    response = client.get("/static/css/app.css")
+
+    assert response.status_code == 200
+    assert b"--color-header-background: #0b3578;" in response.data
+    assert b"--color-header-focus: #ffffff;" in response.data
+    assert b":focus-visible {\n  outline: 3px solid var(--color-focus);" in response.data
+    assert (
+        b".site-header :focus-visible {\n"
+        b"  outline-color: var(--color-header-focus);\n"
+        b"}" in response.data
+    )
