@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Application Not Submitted · Student Grant Applications{% endblock %}
+
+{% block content %}
+  <section class="error-page" aria-labelledby="error-title">
+    <h2 id="error-title">We could not submit the application</h2>
+    <p>The request did not pass the required security check. No application was submitted.</p>
+    <p><a href="{{ url_for('web.application_new') }}">Return to the application form</a></p>
+  </section>
+{% endblock %}

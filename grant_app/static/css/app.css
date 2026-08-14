@@ -1,0 +1,252 @@
+:root {
+  --color-background: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-text: #172033;
+  --color-muted: #4b5568;
+  --color-border: #9aa6b8;
+  --color-primary: #174ea6;
+  --color-primary-dark: #0b3578;
+  --color-focus: #b54708;
+  --color-error: #a51d2d;
+  --color-error-bg: #fff1f2;
+  --color-approved: #17643a;
+  --color-approved-bg: #e8f5ed;
+  --color-not-approved: #8a2d18;
+  --color-not-approved-bg: #fff0eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+a:hover {
+  color: var(--color-primary-dark);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -5rem;
+  z-index: 10;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.75rem 1rem;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.page-shell {
+  width: min(72rem, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.site-header {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.site-header a {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+main {
+  padding-block: 2rem 3rem;
+}
+
+.application-form,
+.error-page,
+.error-summary,
+dl,
+table {
+  background: var(--color-surface);
+}
+
+.application-form {
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 2rem;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+input,
+select,
+button {
+  min-height: 2.75rem;
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  padding: 0.6rem 0.75rem;
+}
+
+button {
+  border: 0;
+  border-radius: 0.25rem;
+  background: var(--color-primary);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.65rem 1.1rem;
+}
+
+button:hover {
+  background: var(--color-primary-dark);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.form-actions {
+  margin-top: 1.5rem;
+}
+
+.field-error {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+.field-error p {
+  margin-block: 0.35rem 0;
+}
+
+[aria-invalid="true"] {
+  border: 2px solid var(--color-error);
+}
+
+.error-summary,
+.error-page,
+.message-error {
+  border-left: 0.4rem solid var(--color-error);
+  padding: 1rem 1.25rem;
+}
+
+.error-summary,
+.message-error {
+  background: var(--color-error-bg);
+}
+
+.status-badge {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+}
+
+.status-approved {
+  background: var(--color-approved-bg);
+  color: var(--color-approved);
+}
+
+.status-not-approved {
+  background: var(--color-not-approved-bg);
+  color: var(--color-not-approved);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) 2fr;
+  gap: 0;
+  border: 1px solid var(--color-border);
+}
+
+dt,
+dd {
+  margin: 0;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem 1rem;
+}
+
+dt {
+  font-weight: 700;
+}
+
+@media (max-width: 719px) {
+  .header-content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .form-grid,
+  dl {
+    grid-template-columns: 1fr;
+  }
+
+  dd {
+    padding-top: 0;
+  }
+}

@@ -4,17 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Student Grant Applications{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body>
-    <a href="#main-content">Skip to main content</a>
-    <header>
-      <h1>Student Grant Applications</h1>
-      <nav aria-label="Primary navigation">
-        <a href="{{ url_for('web.application_new') }}">New Application</a>
-        <a href="/applications">Application History</a>
-      </nav>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-header">
+      <div class="page-shell header-content">
+        <h1>Student Grant Applications</h1>
+        <nav aria-label="Primary navigation">
+          <a href="{{ url_for('web.application_new') }}">New Application</a>
+          <a href="{{ url_for('web.application_history') }}">Application History</a>
+        </nav>
+      </div>
     </header>
-    <main id="main-content">
+    <main class="page-shell" id="main-content" tabindex="-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <section aria-label="Messages">
@@ -26,5 +29,6 @@
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
+    {% block scripts %}{% endblock %}
   </body>
 </html>

@@ -36,7 +36,13 @@
     <dd>{{ application.approval_probability | probability_percent }}</dd>
 
     <dt>Decision</dt>
-    <dd>{{ application.decision.replace("_", " ").title() }}</dd>
+    <dd>
+      {% if application.decision == "APPROVED" %}
+        <span class="status-badge status-approved">Approved</span>
+      {% else %}
+        <span class="status-badge status-not-approved">Not Approved</span>
+      {% endif %}
+    </dd>
 
     <dt>Approval engine</dt>
     <dd>{{ application.approval_engine }}</dd>

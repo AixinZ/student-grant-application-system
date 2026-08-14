@@ -19,6 +19,7 @@
     <button type="submit">Filter applications</button>
   </form>
 
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Submitted grant applications table">
   <table>
     <caption>Submitted grant applications</caption>
     <thead>
@@ -58,6 +59,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   {% if pagination.has_prev or pagination.has_next %}
     <nav aria-label="Application history pages">
