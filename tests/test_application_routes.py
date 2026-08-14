@@ -1,10 +1,11 @@
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from grant_app.approval import ApprovalEngineError
+from grant_app.approval import ApprovalEngineError, RandomApprovalEngine
 from grant_app.constants import Decision
 from grant_app.domain import ApplicationInput, ApprovalOutcome
 from grant_app.extensions import db
@@ -43,7 +44,10 @@ class FailingEngine:
 
     def evaluate(self, data: ApplicationInput) -> ApprovalOutcome:
         self.calls += 1
-        raise ApprovalEngineError("engine internals must remain private")
+        raise ApprovalEngineError(
+            "engine internals must remain private: "
+            f"{data.name} {data.address} {data.annual_income_cad}"
+        ) from RuntimeError("private approval cause")
 
 
 def test_root_redirects_to_new_application(client):
@@ -86,6 +90,7 @@ def test_valid_submission_redirects_and_details_show_the_saved_record(app, clien
         assert saved is not None
         assert saved.approval_probability == Decimal("0.734218")
         assert saved.decision == "APPROVED"
+        assert saved.name_search_key == "alex student"
 
     details = client.get(response.headers["Location"])
     assert details.status_code == 200
@@ -109,6 +114,22 @@ def test_valid_submission_redirects_and_details_show_the_saved_record(app, clien
     assert b"Edit application" not in details.data
     assert b"Delete application" not in details.data
     assert b"Reevaluate" not in details.data
+
+
+def test_submission_persists_full_random_probability_without_rounding(app, client):
+    probability = Decimal("0.0031877934532863472")
+    app.config["APPROVAL_ENGINE"] = RandomApprovalEngine(
+        lambda: 0.0031877934532863472
+    )
+
+    response = client.post("/applications/new", data=VALID_PAYLOAD)
+
+    assert response.status_code == 302
+    with app.app_context():
+        saved = db.session.scalar(db.select(Application))
+        assert saved is not None
+        assert saved.approval_probability == probability
+        assert saved.decision == Decision.NOT_APPROVED.value
 
 
 def test_invalid_submission_returns_422_without_evaluation_or_database_row(
@@ -156,38 +177,67 @@ def test_below_minimum_text_returns_422_without_evaluation_or_database_row(
 
 
 def test_approval_failure_returns_general_retry_message_without_database_row(
-    app, client
+    app, client, caplog
 ):
     engine = FailingEngine()
     app.config["APPROVAL_ENGINE"] = engine
 
-    response = client.post("/applications/new", data=VALID_PAYLOAD)
+    with caplog.at_level("ERROR", logger=app.logger.name):
+        response = client.post("/applications/new", data=VALID_PAYLOAD)
 
     assert response.status_code == 503
     assert b"Please try again." in response.data
     assert b"engine internals" not in response.data
     assert engine.calls == 1
+    assert "application_approval_failed" in caplog.text
+    assert "exception_type=ApprovalEngineError" in caplog.text
+    assert "cause_type=RuntimeError" in caplog.text
+    assert re.search(
+        r"traceback=test_application_routes\.py:evaluate:\d+", caplog.text
+    )
+    assert "engine internals must remain private" not in caplog.text
+    assert "private approval cause" not in caplog.text
+    assert VALID_PAYLOAD["name"] not in caplog.text
+    assert VALID_PAYLOAD["address"] not in caplog.text
+    assert VALID_PAYLOAD["annual_income_cad"] not in caplog.text
     with app.app_context():
         assert db.session.query(Application).count() == 0
 
 
 def test_database_failure_returns_general_retry_message_without_partial_row(
-    app, client, monkeypatch
+    app, client, monkeypatch, caplog
 ):
     engine = FixedEngine()
     app.config["APPROVAL_ENGINE"] = engine
 
     def fail_commit() -> None:
-        raise SQLAlchemyError("database internals must remain private")
+        raise SQLAlchemyError(
+            "SELECT private_table; parameters: "
+            f"{VALID_PAYLOAD['name']} {VALID_PAYLOAD['address']} "
+            f"{VALID_PAYLOAD['annual_income_cad']}"
+        ) from OSError("private database cause")
 
     monkeypatch.setattr(db.session, "commit", fail_commit)
 
-    response = client.post("/applications/new", data=VALID_PAYLOAD)
+    with caplog.at_level("ERROR", logger=app.logger.name):
+        response = client.post("/applications/new", data=VALID_PAYLOAD)
 
     assert response.status_code == 503
     assert b"Please try again." in response.data
     assert b"database internals" not in response.data
     assert engine.calls == 1
+    assert "application_persistence_failed" in caplog.text
+    assert "exception_type=SQLAlchemyError" in caplog.text
+    assert "cause_type=OSError" in caplog.text
+    assert re.search(
+        r"traceback=test_application_routes\.py:fail_commit:\d+", caplog.text
+    )
+    assert "SELECT private_table" not in caplog.text
+    assert "parameters:" not in caplog.text
+    assert "private database cause" not in caplog.text
+    assert VALID_PAYLOAD["name"] not in caplog.text
+    assert VALID_PAYLOAD["address"] not in caplog.text
+    assert VALID_PAYLOAD["annual_income_cad"] not in caplog.text
     with app.app_context():
         assert db.session.query(Application).count() == 0
 

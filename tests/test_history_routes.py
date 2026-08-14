@@ -99,6 +99,74 @@ def test_history_searches_names_by_case_insensitive_partial_match(client):
     assert b"Newest Student" not in response.data
 
 
+def test_history_search_uses_persisted_unicode_casefold_key(app, client):
+    name = "E\u0301LODIE Grant"
+    with app.app_context():
+        application = Application(
+            name=name,
+            annual_income_cad=Decimal("42000.00"),
+            address="24 Accent Street",
+            age=24,
+            education_level="BACHELORS_DEGREE",
+            marital_status="SINGLE",
+            dependents=0,
+            province="BC",
+            approval_probability=Decimal("0.75"),
+            decision=Decision.APPROVED.value,
+            approval_engine="test-v1",
+        )
+        db.session.add(application)
+        db.session.commit()
+        db.session.expire_all()
+        saved = db.session.get(Application, application.id)
+        assert saved is not None
+        assert saved.name == name
+        assert saved.name_search_key == "élodie grant"
+
+    response = client.get("/applications?q=élodie")
+
+    assert response.status_code == 200
+    assert response.data.count(b'class="history-row"') == 1
+    assert name.encode() in response.data
+
+
+@pytest.mark.parametrize(
+    ("literal_query", "matching_name", "nonmatching_name"),
+    [
+        ("%", "Percent % Student", "Percent Student"),
+        ("_", "Under_score Student", "UnderXscore Student"),
+    ],
+)
+def test_history_search_treats_sql_wildcards_as_literal_substrings(
+    app, client, literal_query, matching_name, nonmatching_name
+):
+    with app.app_context():
+        for offset, name in enumerate((matching_name, nonmatching_name)):
+            db.session.add(
+                Application(
+                    name=name,
+                    annual_income_cad=Decimal("42000.00"),
+                    address=f"{offset + 40} Literal Street",
+                    age=24,
+                    education_level="BACHELORS_DEGREE",
+                    marital_status="SINGLE",
+                    dependents=0,
+                    province="BC",
+                    approval_probability=Decimal("0.75"),
+                    decision=Decision.APPROVED.value,
+                    approval_engine="test-v1",
+                )
+            )
+        db.session.commit()
+
+    response = client.get("/applications", query_string={"q": literal_query})
+
+    assert response.status_code == 200
+    assert response.data.count(b'class="history-row"') == 1
+    assert matching_name.encode() in response.data
+    assert nonmatching_name.encode() not in response.data
+
+
 def test_history_filters_by_decision(client):
     response = client.get("/applications?decision=APPROVED")
 

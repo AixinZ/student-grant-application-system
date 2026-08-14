@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .approval import ApprovalEngineError
 from .constants import Decision, EDUCATION_CHOICES, MARITAL_STATUS_CHOICES
+from .diagnostics import log_exception_context
 from .forms import StudentApplicationForm
 from .repository import ApplicationRepository
 from .services import create_application
@@ -44,12 +45,16 @@ def application_new():
             application = create_application(
                 form.to_domain(), current_app.config["APPROVAL_ENGINE"]
             )
-        except ApprovalEngineError:
-            current_app.logger.error("application_approval_failed")
+        except ApprovalEngineError as error:
+            log_exception_context(
+                current_app.logger, "application_approval_failed", error
+            )
             flash(RETRY_MESSAGE, "error")
             return render_template("applications/new.html", form=form), 503
-        except SQLAlchemyError:
-            current_app.logger.error("application_persistence_failed")
+        except SQLAlchemyError as error:
+            log_exception_context(
+                current_app.logger, "application_persistence_failed", error
+            )
             flash(RETRY_MESSAGE, "error")
             return render_template("applications/new.html", form=form), 503
 

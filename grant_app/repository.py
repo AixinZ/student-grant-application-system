@@ -1,9 +1,9 @@
 from flask_sqlalchemy.pagination import Pagination
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from .constants import Decision
 from .extensions import db
-from .models import Application
+from .models import Application, make_name_search_key
 
 
 class ApplicationRepository:
@@ -30,7 +30,9 @@ class ApplicationRepository:
         normalized_name = name_query.strip()
         if normalized_name and len(normalized_name) <= 100:
             statement = statement.where(
-                func.lower(Application.name).contains(normalized_name.lower())
+                Application.name_search_key.contains(
+                    make_name_search_key(normalized_name), autoescape=True
+                )
             )
 
         try:

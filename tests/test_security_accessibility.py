@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from logging.handlers import RotatingFileHandler
@@ -50,7 +51,10 @@ class UnexpectedEngine:
                 approval_engine="test-v1",
             )
         )
-        raise RuntimeError("approval service unavailable")
+        raise RuntimeError(
+            "approval service unavailable: "
+            f"{data.name} {data.address} {data.annual_income_cad}"
+        ) from ValueError("private nested cause")
 
 
 @pytest.fixture
@@ -192,8 +196,16 @@ def test_unexpected_service_error_rolls_back_and_logs_no_submitted_pii(
     assert b"Something went wrong" in response.data
     assert b"approval service unavailable" not in response.data
     assert "unexpected_server_error" in caplog.text
+    assert "exception_type=RuntimeError" in caplog.text
+    assert "cause_type=ValueError" in caplog.text
+    assert re.search(
+        r"traceback=test_security_accessibility\.py:evaluate:\d+", caplog.text
+    )
+    assert "approval service unavailable" not in caplog.text
+    assert "private nested cause" not in caplog.text
     assert VALID_PAYLOAD["name"] not in caplog.text
     assert VALID_PAYLOAD["address"] not in caplog.text
+    assert VALID_PAYLOAD["annual_income_cad"] not in caplog.text
     with production_style_app.app_context():
         assert db.session.query(Application).count() == 0
 

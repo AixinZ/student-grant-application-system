@@ -25,9 +25,13 @@ Copy `.env.example` to `.env`, replace the example value with the generated
 secret, and keep `.env` untracked. The repository `.gitignore` already excludes
 this file. Do not reuse a secret from another environment or commit it.
 
-By default the application uses its local SQLite database. To override the
-connection for a local development purpose, uncomment and change `DATABASE_URL`
-in `.env`.
+`DATABASE_URL` is SQLite-only. By default the application uses
+`sqlite:///student_grants.sqlite`, which Flask resolves in the local `instance/`
+directory. To use a different local SQLite file, uncomment `DATABASE_URL` in
+`.env` and set another SQLite SQLAlchemy URL such as
+`sqlite:////absolute/path/to/student_grants.sqlite`. The application rejects
+non-SQLite database dialects at startup because its exact Decimal storage and
+database constraints are currently implemented specifically for SQLite.
 
 ## Start and stop
 
