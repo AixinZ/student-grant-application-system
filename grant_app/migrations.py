@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import MetaData
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.exc import DBAPIError
 
 from .extensions import db
 from .models import (
@@ -239,8 +240,20 @@ def _record_schema_version(connection: Connection, version: int) -> None:
 
 
 def ensure_sqlite_schema(engine: Engine) -> None:
-    with engine.connect() as connection:
-        connection.exec_driver_sql("BEGIN IMMEDIATE")
+    try:
+        connection = engine.connect()
+    except DBAPIError:
+        raise MigrationError("begin-transaction") from None
+
+    with connection:
+        try:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+        except DBAPIError:
+            try:
+                connection.rollback()
+            except DBAPIError:
+                pass
+            raise MigrationError("begin-transaction") from None
         try:
             state = _inspect_schema(connection)
             if state == "absent":

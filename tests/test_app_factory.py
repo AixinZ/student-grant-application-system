@@ -106,3 +106,33 @@ def test_create_app_rejects_unknown_schema_without_changing_database(
 
     assert sql_after == sql_before
     assert rows_after == rows_before
+
+
+def test_create_app_sanitizes_corrupt_sqlite_startup_failure(tmp_path, caplog):
+    database_path = tmp_path / "corrupt-factory.sqlite"
+    sensitive_marker = "PII-CORRUPT-4f821a"
+    original_bytes = f"{sensitive_marker} invalid SQLite bytes".encode()
+    database_path.write_bytes(original_bytes)
+
+    with pytest.raises(
+        RuntimeError,
+        match="existing data was not changed",
+    ) as captured:
+        create_app(
+            {
+                "TESTING": True,
+                "SECRET_KEY": "test-secret",
+                "WTF_CSRF_ENABLED": False,
+                "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}",
+            }
+        )
+
+    assert str(captured.value) == (
+        "SQLite database migration failed; existing data was not changed"
+    )
+    assert "database_migration_failed stage=begin-transaction" in caplog.text
+    assert "BEGIN IMMEDIATE" not in caplog.text
+    assert "parameters" not in caplog.text
+    assert "file is not a database" not in caplog.text
+    assert sensitive_marker not in caplog.text
+    assert database_path.read_bytes() == original_bytes
