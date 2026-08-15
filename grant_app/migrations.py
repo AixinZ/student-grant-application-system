@@ -123,7 +123,7 @@ def _inspect_schema(connection: Connection) -> str:
 
     fingerprint = _table_fingerprint(connection, "applications")
     if fingerprint == _LEGACY_FINGERPRINT:
-        if version is not None:
+        if version not in (None, 1):
             raise MigrationError("inspect-schema")
         return "legacy"
     if fingerprint == _CURRENT_FINGERPRINT:
@@ -255,4 +255,4 @@ def ensure_sqlite_schema(engine: Engine) -> None:
             connection.rollback()
             if isinstance(error, MigrationError):
                 raise
-            raise MigrationError("apply-schema") from error
+            raise MigrationError("apply-schema") from None

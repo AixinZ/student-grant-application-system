@@ -1,4 +1,5 @@
 import sqlite3
+import traceback
 from datetime import datetime
 from decimal import Decimal
 
@@ -171,6 +172,58 @@ def test_known_legacy_database_is_migrated_without_changing_record_meaning(tmp_p
         "ix_applications_name_search_key",
         "ix_applications_submitted_at",
     }
+
+
+# Protected mutation: rejecting a legacy-consistent v1 marker or failing to
+# advance it to v2 must fail this preservation test.
+def test_legacy_database_with_v1_marker_migrates_and_advances_marker(tmp_path):
+    database_path = tmp_path / "legacy-v1.sqlite"
+    create_legacy_database(database_path)
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE schema_migrations (
+                id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+                version INTEGER NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO schema_migrations (id, version) VALUES (1, 1)"
+        )
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    ensure_sqlite_schema(engine)
+    engine.dispose()
+
+    with sqlite3.connect(database_path) as connection:
+        migrated_rows = connection.execute(
+            """
+            SELECT id, name, address, annual_income_cad, approval_probability
+            FROM applications
+            ORDER BY id
+            """
+        ).fetchall()
+        marker = connection.execute(
+            "SELECT id, version FROM schema_migrations"
+        ).fetchall()
+    assert migrated_rows == [
+        (
+            7,
+            "E\u0301LODIE Grant",
+            "24 Accent Street",
+            4_200_050,
+            "0.31877934532863472",
+        ),
+        (
+            23,
+            "Jordan Lee",
+            "99 Boundary Road",
+            99_999_999_999,
+            "0.75",
+        ),
+    ]
+    assert marker == [(1, 2)]
 
 
 def read_current_snapshot(database_path):
@@ -361,3 +414,50 @@ def test_invalid_legacy_row_rolls_back_table_rebuild_and_version(tmp_path):
     assert rows_after == rows_before
     assert "applications_migrating_v2" not in table_names
     assert "schema_migrations" not in table_names
+
+
+# Protected mutation: chaining the original constraint exception must expose the
+# sensitive row, SQL, or parameters in the rendered migration traceback.
+def test_constraint_failure_surfaces_only_sanitized_migration_error(tmp_path):
+    database_path = tmp_path / "sensitive-constraint-error.sqlite"
+    sensitive_name = "PII-NAME-4f821a"
+    sensitive_address = "PII-ADDRESS-91b072"
+    constraint_violating_row = (
+        52,
+        sensitive_name,
+        42000.50,
+        sensitive_address,
+        15,
+        "BACHELORS_DEGREE",
+        "SINGLE",
+        0,
+        "BC",
+        31877934532863472,
+        "NOT_APPROVED",
+        "random-v1",
+        "2026-08-15 12:00:00.000000",
+    )
+    create_legacy_database(
+        database_path,
+        rows=(constraint_violating_row,),
+        ignore_check_constraints=True,
+    )
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    with pytest.raises(MigrationError) as captured:
+        ensure_sqlite_schema(engine)
+    engine.dispose()
+    rendered = "".join(
+        traceback.format_exception(captured.type, captured.value, captured.tb)
+    )
+
+    assert captured.type is MigrationError
+    assert captured.value.stage == "apply-schema"
+    assert captured.value.__cause__ is None
+    assert "MigrationError" in rendered
+    assert "apply-schema" in rendered
+    assert sensitive_name not in rendered
+    assert sensitive_address not in rendered
+    assert "INSERT INTO" not in rendered
+    assert "[parameters:" not in rendered
+    assert "sqlalchemy.exc.IntegrityError" not in rendered
