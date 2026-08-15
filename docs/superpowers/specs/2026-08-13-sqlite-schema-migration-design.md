@@ -1,7 +1,7 @@
 # SQLite Schema Migration Design
 
 **Date:** 2026-08-13  
-**Status:** Approved approach; written specification pending user review
+**Status:** Approved by user on 2026-08-15
 
 ## Purpose
 
