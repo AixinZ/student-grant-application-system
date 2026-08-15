@@ -1,11 +1,14 @@
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 
+from grant_app import create_app
 from grant_app.constants import Decision
 from grant_app.extensions import db
 from grant_app.models import Application
+from tests.test_migrations import create_legacy_database
 
 
 @pytest.fixture(autouse=True)
@@ -227,3 +230,43 @@ def test_history_invalid_query_values_safely_default_to_page_one_and_all(
     assert b"Newest Student" in response.data
     assert b"Student 00" not in response.data
     assert b'<option value="" selected>All</option>' in response.data
+
+
+def test_legacy_history_and_details_survive_repeated_startup(tmp_path):
+    database_path = tmp_path / "legacy-history.sqlite"
+    create_legacy_database(database_path)
+    config = {
+        "TESTING": True,
+        "SECRET_KEY": "test-secret",
+        "WTF_CSRF_ENABLED": False,
+        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}",
+    }
+
+    first_app = create_app(config)
+    assert first_app.test_client().get("/applications").status_code == 200
+
+    second_app = create_app(config)
+    client = second_app.test_client()
+    history = client.get("/applications?q=élodie")
+    details = client.get("/applications/7")
+
+    assert history.status_code == 200
+    assert details.status_code == 200
+    assert "E\u0301LODIE Grant".encode() in history.data
+    assert b"$42,000.50 CAD" in details.data
+    assert b"31.88%" in details.data
+    assert b"Not Approved" in details.data
+
+    with sqlite3.connect(database_path) as connection:
+        persisted = connection.execute(
+            """
+            SELECT id, submitted_at, decision, approval_engine
+            FROM applications
+            ORDER BY id
+            """
+        ).fetchall()
+
+    assert persisted == [
+        (7, "2026-08-12 18:30:00.000000", "NOT_APPROVED", "random-v1"),
+        (23, "2026-08-13 09:15:30.000000", "APPROVED", "random-v1"),
+    ]

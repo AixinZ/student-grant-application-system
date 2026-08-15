@@ -42,8 +42,10 @@ Start the server from the repository root:
 ```
 
 Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in a browser. The initial
-startup creates the database and tables if they are not already present. To stop
-the server, return to its terminal and press `Ctrl-C`.
+startup creates the database and tables if they are not already present. Before
+accepting requests, startup also automatically migrates the known legacy schema.
+Repeated startup is safe and does not reconvert records that were already
+migrated. To stop the server, return to its terminal and press `Ctrl-C`.
 
 ## Test
 
@@ -66,14 +68,24 @@ control. Treat both files as private operational data.
 
 ## Backup
 
+Before the first startup of this revision, stop the server and create a
+protected backup of the database:
+
 1. Stop the server with `Ctrl-C` so no writes are in progress.
 2. Copy `instance/student_grants.sqlite` to a protected, timestamped location.
    For example, use a location managed by the operator's approved backup policy.
 3. Restart the server using the command above.
+4. After startup, verify Application History and open one Details page before
+   accepting new applications.
 
 Do not make a live filesystem copy while the server is accepting submissions.
 
 ## Restore and recovery
+
+If startup reports a database migration failure, keep both the database and its
+backup untouched. Do not delete or recreate the database. Restore the previous
+application revision, then investigate the privacy-safe
+`database_migration_failed` log event before attempting another upgrade.
 
 1. Stop the server with `Ctrl-C`.
 2. Preserve the current `instance/student_grants.sqlite` separately before

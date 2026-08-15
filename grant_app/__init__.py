@@ -12,6 +12,7 @@ from .diagnostics import log_exception_context
 from .extensions import csrf, db
 from .formatters import cad_currency, probability_percent, vancouver_datetime
 from .logging_config import configure_logging
+from .migrations import MigrationError, ensure_sqlite_schema
 
 
 def _validate_sqlite_database_uri(database_uri: object) -> None:
@@ -77,7 +78,17 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     with app.app_context():
         from . import models  # noqa: F401
 
-        db.create_all()
+        try:
+            ensure_sqlite_schema(db.engine)
+        except MigrationError as error:
+            log_exception_context(
+                app.logger,
+                f"database_migration_failed stage={error.stage}",
+                error,
+            )
+            raise RuntimeError(
+                "SQLite database migration failed; existing data was not changed"
+            ) from None
 
     from .routes import web
 
