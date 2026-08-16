@@ -27,11 +27,16 @@ this file. Do not reuse a secret from another environment or commit it.
 
 `DATABASE_URL` is SQLite-only. By default the application uses
 `sqlite:///student_grants.sqlite`, which Flask resolves in the local `instance/`
-directory. To use a different local SQLite file, uncomment `DATABASE_URL` in
-`.env` and set another SQLite SQLAlchemy URL such as
-`sqlite:////absolute/path/to/student_grants.sqlite`. The application rejects
-non-SQLite database dialects at startup because its exact Decimal storage and
-database constraints are currently implemented specifically for SQLite.
+directory, so the default configured database file is
+`instance/student_grants.sqlite`. To use a different local SQLite file,
+uncomment `DATABASE_URL` in `.env` and set another SQLite SQLAlchemy URL. For
+example, `sqlite:////absolute/path/to/student_grants.sqlite` identifies the
+configured database file `/absolute/path/to/student_grants.sqlite`. Before any
+backup or restore, read the effective `DATABASE_URL` and identify that file; all
+database operations below refer to this configured database file. The
+application rejects non-SQLite database dialects at startup because its exact
+Decimal storage and database constraints are currently implemented specifically
+for SQLite.
 
 ## Start and stop
 
@@ -72,10 +77,11 @@ Before the first startup of this revision, stop the server and create a
 protected backup of the database:
 
 1. Stop the server with `Ctrl-C` so no writes are in progress.
-2. Copy `instance/student_grants.sqlite` to a protected, timestamped location.
-   For example, use a location managed by the operator's approved backup policy.
-3. Restart the server using the command above.
-4. After startup, verify Application History and open one Details page before
+2. Identify the configured database file from `DATABASE_URL` as described above.
+3. Copy that configured database file to a protected, timestamped location. For
+   example, use a location managed by the operator's approved backup policy.
+4. Restart the server using the command above.
+5. After startup, verify Application History and open one Details page before
    accepting new applications.
 
 Do not make a live filesystem copy while the server is accepting submissions.
@@ -88,11 +94,11 @@ application revision, then investigate the privacy-safe
 `database_migration_failed` log event before attempting another upgrade.
 
 1. Stop the server with `Ctrl-C`.
-2. Preserve the current `instance/student_grants.sqlite` separately before
-   replacing it.
-3. Copy the selected backup into `instance/student_grants.sqlite`.
-4. Restart the server using the command above.
-5. Open Application History and verify the expected records before accepting new
+2. Identify the configured database file from `DATABASE_URL` as described above.
+3. Preserve the current configured database file separately before replacing it.
+4. Copy the selected backup over that same configured database file.
+5. Restart the server using the command above.
+6. Open Application History and verify the expected records before accepting new
    applications.
 
 The web interface intentionally does not provide edit, delete, or restore

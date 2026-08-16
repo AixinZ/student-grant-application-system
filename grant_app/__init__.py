@@ -12,7 +12,11 @@ from .diagnostics import log_exception_context
 from .extensions import csrf, db
 from .formatters import cad_currency, probability_percent, vancouver_datetime
 from .logging_config import configure_logging
-from .migrations import MigrationError, ensure_sqlite_schema
+from .migrations import (
+    ROLLBACK_FAILURE_STAGE,
+    MigrationError,
+    ensure_sqlite_schema,
+)
 
 
 def _validate_sqlite_database_uri(database_uri: object) -> None:
@@ -86,6 +90,12 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
                 f"database_migration_failed stage={error.stage}",
                 error,
             )
+            if error.stage == ROLLBACK_FAILURE_STAGE:
+                raise RuntimeError(
+                    "SQLite database migration failed and rollback/data state "
+                    "could not be confirmed; stop the application and preserve "
+                    "the database and backup"
+                ) from None
             raise RuntimeError(
                 "SQLite database migration failed; existing data was not changed"
             ) from None
