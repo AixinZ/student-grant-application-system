@@ -807,6 +807,7 @@ def test_persistent_rollback_failure_discards_connection_without_pool_log_leak(
 ):
     database_path = tmp_path / "persistent-rollback-failure.sqlite"
     create_sensitive_invalid_legacy_database(database_path)
+    before = read_applications_authentication_snapshot(database_path)
     raw_marker = "RAW-ROLLBACK-SECRET-65e3ad"
     engine = create_engine(f"sqlite:///{database_path}")
     with engine.connect() as primed:
@@ -817,7 +818,8 @@ def test_persistent_rollback_failure_discards_connection_without_pool_log_leak(
         raise sqlite3.OperationalError(raw_marker)
 
     monkeypatch.setattr(engine.dialect, "do_rollback", fail_every_rollback)
-    caplog.set_level(logging.ERROR)
+    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.INFO, logger="sqlalchemy.pool")
     try:
         with pytest.raises(MigrationError) as captured:
             ensure_sqlite_schema(engine)
@@ -836,14 +838,23 @@ def test_persistent_rollback_failure_discards_connection_without_pool_log_leak(
     finally:
         engine.dispose()
 
+    after = read_applications_authentication_snapshot(database_path)
     assert captured.value.stage == "rollback-unconfirmed"
     assert captured.value.__cause__ is None
     assert captured.value.__suppress_context__ is True
-    assert raw_marker not in caplog.text
-    assert "Exception during reset or similar" not in caplog.text
+    for forbidden in (
+        raw_marker,
+        "PII-NAME-4f821a",
+        "PII-ADDRESS-91b072",
+        "INSERT INTO",
+        "[parameters:",
+        "Exception during reset or similar",
+    ):
+        assert forbidden not in caplog.text
     assert preserved_count == 1
     assert "applications_migrating_v2" not in table_names
     assert "schema_migrations" not in table_names
+    assert after == before
 
 
 # Guardrail: the rollback guard is deliberately limited to DBAPI failures;
