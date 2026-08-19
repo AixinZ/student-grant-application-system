@@ -576,6 +576,7 @@ def ensure_sqlite_schema(engine: Engine) -> None:
             try:
                 connection.rollback()
             except DBAPIError:
+                connection.invalidate()
                 raise MigrationError(ROLLBACK_FAILURE_STAGE) from None
             if isinstance(error, MigrationError):
                 raise

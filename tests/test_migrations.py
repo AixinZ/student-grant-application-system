@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 import traceback
 from datetime import datetime
@@ -797,6 +798,52 @@ def test_rollback_dbapi_failure_raises_sanitized_unconfirmed_stage(
         "sqlalchemy.exc.IntegrityError",
     ):
         assert forbidden not in rendered
+
+
+# Protected mutation: returning a connection whose low-level rollback keeps
+# failing to the pool must not trigger a second reset that logs the raw error.
+def test_persistent_rollback_failure_discards_connection_without_pool_log_leak(
+    tmp_path, monkeypatch, caplog
+):
+    database_path = tmp_path / "persistent-rollback-failure.sqlite"
+    create_sensitive_invalid_legacy_database(database_path)
+    raw_marker = "RAW-ROLLBACK-SECRET-65e3ad"
+    engine = create_engine(f"sqlite:///{database_path}")
+    with engine.connect() as primed:
+        primed.exec_driver_sql("SELECT 1")
+    original_do_rollback = engine.dialect.do_rollback
+
+    def fail_every_rollback(_dbapi_connection):
+        raise sqlite3.OperationalError(raw_marker)
+
+    monkeypatch.setattr(engine.dialect, "do_rollback", fail_every_rollback)
+    caplog.set_level(logging.ERROR)
+    try:
+        with pytest.raises(MigrationError) as captured:
+            ensure_sqlite_schema(engine)
+        monkeypatch.setattr(engine.dialect, "do_rollback", original_do_rollback)
+
+        with engine.connect() as replacement:
+            preserved_count = replacement.exec_driver_sql(
+                "SELECT count(*) FROM applications"
+            ).scalar_one()
+            table_names = {
+                row[0]
+                for row in replacement.exec_driver_sql(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+    finally:
+        engine.dispose()
+
+    assert captured.value.stage == "rollback-unconfirmed"
+    assert captured.value.__cause__ is None
+    assert captured.value.__suppress_context__ is True
+    assert raw_marker not in caplog.text
+    assert "Exception during reset or similar" not in caplog.text
+    assert preserved_count == 1
+    assert "applications_migrating_v2" not in table_names
+    assert "schema_migrations" not in table_names
 
 
 # Guardrail: the rollback guard is deliberately limited to DBAPI failures;
