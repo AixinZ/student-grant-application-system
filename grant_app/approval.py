@@ -55,6 +55,8 @@ class RandomApprovalEngine:
         Raises:
             ApprovalEngineError: If the random source returns a non-finite
                 value or a value outside ``[0, 1)``.
+            InvalidOperation: If the random source returns a value whose string
+                representation cannot be parsed as a decimal number.
         """
         probability = Decimal(str(self.random_source()))
         if (

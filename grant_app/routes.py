@@ -60,7 +60,8 @@ def application_new():
     Returns:
         The empty or invalid form page, a redirect to the immutable detail page
         after successful creation, or a 503 form response when approval or
-        persistence fails safely. Invalid POST data returns status 422.
+        persistence fails safely. Ordinary form-validation failures return 422;
+        CSRF failures are intercepted by the application-level 400 handler.
 
     Notes:
         Successful submissions create one database record. Approval and database

@@ -144,6 +144,8 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     Raises:
         RuntimeError: If ``SECRET_KEY`` is missing, the database URL is invalid
             or non-SQLite, or schema inspection/migration cannot complete safely.
+        OSError: If the instance directory or rotating log file cannot be
+            created or opened.
     """
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
