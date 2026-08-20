@@ -8,7 +8,15 @@ if (errorSummary) {
 }
 
 if (applicationForm) {
-  applicationForm.addEventListener("submit", () => {
+  /**
+   * Prevent duplicate valid submissions while leaving invalid forms editable.
+   *
+   * @returns {void}
+   *
+   * The callback relies on native browser validation. Once the form is valid,
+   * it disables the submit button and replaces its label with a progress state.
+   */
+  const handleApplicationSubmit = () => {
     if (!applicationForm.checkValidity()) {
       return;
     }
@@ -18,5 +26,7 @@ if (applicationForm) {
       submitButton.disabled = true;
       submitButton.textContent = "Submitting…";
     }
-  });
+  };
+
+  applicationForm.addEventListener("submit", handleApplicationSubmit);
 }

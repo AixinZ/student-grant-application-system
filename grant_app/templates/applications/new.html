@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {# Renders the grant application form, validation summary, and accessible field errors. #}
 
+{#
+  Render all validation messages associated with one WTForms field.
+
+  Args:
+    field: A bound WTForms field whose id and validation errors are available.
+
+  Returns:
+    Accessible error markup linked to the field, or no markup when the field is
+    valid.
+#}
 {% macro field_errors(field) %}
   {% if field.errors %}
     <div id="{{ field.id }}-error" class="field-error">

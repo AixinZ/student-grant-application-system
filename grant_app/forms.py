@@ -20,14 +20,41 @@ from .domain import ApplicationInput
 
 
 def trim_text(value: str | None) -> str | None:
+    """Trim surrounding whitespace and normalize text to Unicode NFC.
+
+    Args:
+        value: A submitted string or ``None``.
+
+    Returns:
+        The normalized string, or the original non-string value.
+    """
     return unicodedata.normalize("NFC", value.strip()) if isinstance(value, str) else value
 
 
 def normalize_province(value: str | None) -> str | None:
+    """Normalize a submitted province or territory code to uppercase.
+
+    Args:
+        value: A submitted province code or ``None``.
+
+    Returns:
+        A trimmed, NFC-normalized uppercase code, or the original non-string
+        value.
+    """
     return trim_text(value).upper() if isinstance(value, str) else value
 
 
 def validate_name(_form, field) -> None:
+    """Require a name to contain only letters and common name separators.
+
+    Args:
+        _form: The WTForms form instance; unused by this field validator.
+        field: The name field containing normalized submitted text.
+
+    Raises:
+        ValidationError: If the name contains digits, punctuation other than
+            apostrophes or hyphens, or other unsupported characters.
+    """
     allowed_marks = {" ", "-", "'", "’"}
     if any(not (char.isalpha() or char in allowed_marks) for char in field.data):
         raise ValidationError(
@@ -36,6 +63,16 @@ def validate_name(_form, field) -> None:
 
 
 def reject_control_characters(_form, field) -> None:
+    """Reject control, line-separator, and paragraph-separator characters.
+
+    Args:
+        _form: The WTForms form instance; unused by this field validator.
+        field: The text field whose submitted value is inspected.
+
+    Raises:
+        ValidationError: If the value contains an unsupported Unicode control
+            or separator character.
+    """
     if any(
         unicodedata.category(char).startswith("C")
         or unicodedata.category(char) in {"Zl", "Zp"}
@@ -45,11 +82,31 @@ def reject_control_characters(_form, field) -> None:
 
 
 def validate_finite_income(_form, field) -> None:
+    """Stop income validation when the parsed decimal is not finite.
+
+    Args:
+        _form: The WTForms form instance; unused by this field validator.
+        field: The annual-income field containing a parsed ``Decimal``.
+
+    Raises:
+        StopValidation: If the value is positive infinity, negative infinity,
+            or NaN.
+    """
     if field.data is not None and not field.data.is_finite():
         raise StopValidation("Annual income must be a finite number.")
 
 
 def validate_income_decimal_places(_form, field) -> None:
+    """Limit annual income to at most two fractional decimal places.
+
+    Args:
+        _form: The WTForms form instance; unused by this field validator.
+        field: The annual-income field containing a parsed ``Decimal``.
+
+    Raises:
+        ValidationError: If the submitted amount has more than two decimal
+            places.
+    """
     if field.data is not None and field.data.as_tuple().exponent < -2:
         raise ValidationError("Annual income may have at most two decimal places.")
 
@@ -138,6 +195,14 @@ class StudentApplicationForm(FlaskForm):
     )
 
     def __init__(self, *args, **kwargs) -> None:
+        """Initialize the form and support a plain mapping through ``data``.
+
+        Args:
+            *args: Positional arguments forwarded to ``FlaskForm``.
+            **kwargs: Keyword arguments forwarded to ``FlaskForm``. When a
+                ``data`` mapping is provided without form data, it is converted
+                to a ``MultiDict`` so normal parsing and validation still run.
+        """
         data = kwargs.get("data")
         if data is not None and "formdata" not in kwargs and not args:
             kwargs["formdata"] = MultiDict(data)
@@ -145,6 +210,14 @@ class StudentApplicationForm(FlaskForm):
         super().__init__(*args, **kwargs)
 
     def to_domain(self) -> ApplicationInput:
+        """Convert a valid form into the service-layer input object.
+
+        Returns:
+            An immutable ``ApplicationInput`` containing all normalized values.
+
+        Raises:
+            ValueError: If the form does not pass validation at conversion time.
+        """
         if not self.validate():
             raise ValueError("Form must be valid before conversion.")
 

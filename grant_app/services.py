@@ -11,6 +11,21 @@ def create_application(
     engine: ApprovalEngine,
     repository: ApplicationRepository | None = None,
 ) -> Application:
+    """Evaluate, construct, and persist one immutable grant application.
+
+    Args:
+        data: Validated student information from the application form.
+        engine: The approval engine that produces the probability and decision.
+        repository: Optional persistence boundary, primarily injectable for
+            alternate implementations and isolated tests.
+
+    Returns:
+        The persisted application, including its assigned database identifier.
+
+    Raises:
+        ApprovalEngineError: If the approval engine produces an invalid result.
+        SQLAlchemyError: If the application cannot be stored in the database.
+    """
     outcome = engine.evaluate(data)
     application = Application(
         name=data.name,

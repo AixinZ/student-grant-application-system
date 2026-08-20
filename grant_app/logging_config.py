@@ -8,7 +8,19 @@ from flask import Flask
 
 
 def configure_logging(app: Flask) -> None:
-    """Configure a bounded local application log without request payloads."""
+    """Configure a bounded local application log without request payloads.
+
+    Args:
+        app: The Flask application whose logger and instance directory are
+            configured.
+
+    Raises:
+        OSError: If the log directory or rotating log file cannot be created.
+
+    Notes:
+        Previously installed handlers created by this function are closed and
+        replaced. Testing apps skip file logging unless ``LOG_FILE`` is set.
+    """
     for existing in list(app.logger.handlers):
         if getattr(existing, "_student_grants_file_handler", False):
             app.logger.removeHandler(existing)

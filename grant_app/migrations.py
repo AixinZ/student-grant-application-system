@@ -26,6 +26,12 @@ ROLLBACK_FAILURE_STAGE = "rollback-unconfirmed"
 
 class MigrationError(RuntimeError):
     def __init__(self, stage: str):
+        """Create a sanitized migration failure for a specific processing stage.
+
+        Args:
+            stage: A stable operator-facing stage identifier that contains no
+                SQL, parameters, record values, or raw database error message.
+        """
         super().__init__(f"SQLite schema migration failed during {stage}")
         self.stage = stage
 
@@ -117,6 +123,15 @@ _APPLICATION_COLUMNS = tuple(column[0] for column in _LEGACY_COLUMNS)
 
 
 def _expected_xinfo(columns):
+    """Build the expected ``pragma_table_xinfo`` fingerprint for known columns.
+
+    Args:
+        columns: Ordered column specifications containing name, declared type,
+            nullability, and primary-key position.
+
+    Returns:
+        A tuple matching SQLite's normalized extended column metadata shape.
+    """
     return tuple(
         (position, name, declared_type, not_null, None, primary_key, 0)
         for position, (name, declared_type, not_null, primary_key) in enumerate(
@@ -131,6 +146,16 @@ _MIGRATION_XINFO = _expected_xinfo(_MIGRATION_COLUMNS)
 
 
 def _expected_index(column_id: int, column_name: str):
+    """Build the expected fingerprint for one ordinary single-column index.
+
+    Args:
+        column_id: The zero-based SQLite column identifier indexed by the key.
+        column_name: The corresponding database column name.
+
+    Returns:
+        A normalized index descriptor matching ``pragma_index_list`` and
+        ``pragma_index_xinfo`` output.
+    """
     return (False, "c", False, ((0, column_id, column_name, False, "BINARY"),))
 
 
@@ -149,10 +174,30 @@ _CURRENT_INDEXES = {
 
 
 def _normalize_declared_type(declared_type: str) -> str:
+    """Normalize SQLite declared types for stable schema comparison.
+
+    Args:
+        declared_type: The type text reported by SQLite schema metadata.
+
+    Returns:
+        Uppercase type text with insignificant whitespace removed.
+    """
     return re.sub(r"\s+", "", declared_type).upper()
 
 
 def _normalize_sql_fragment(fragment: str | None) -> str | None:
+    """Remove insignificant SQL whitespace while preserving quoted content.
+
+    Args:
+        fragment: A SQL declaration fragment, or ``None`` for a missing default.
+
+    Returns:
+        A lowercase, whitespace-free representation outside quoted strings, or
+        ``None`` when the input is ``None``.
+
+    Raises:
+        ValueError: If a quoted SQL identifier or string is not terminated.
+    """
     if fragment is None:
         return None
 
@@ -181,6 +226,19 @@ def _normalize_sql_fragment(fragment: str | None) -> str | None:
 
 
 def _table_declaration_fingerprint(table_sql: str):
+    """Parse table SQL into comparable columns, constraints, and options.
+
+    Args:
+        table_sql: A complete SQLite ``CREATE TABLE`` statement.
+
+    Returns:
+        A three-part fingerprint containing ordered column declarations,
+        order-independent constraints, and normalized table options.
+
+    Raises:
+        ValueError: If the declaration has unbalanced parentheses, unterminated
+            quotes, or no table-body opening parenthesis.
+    """
     opening_parenthesis = table_sql.find("(")
     if opening_parenthesis < 0:
         raise ValueError
@@ -251,6 +309,16 @@ def _table_declaration_fingerprint(table_sql: str):
 
 
 def _table_xinfo(connection: Connection, table_name: str):
+    """Read and normalize extended SQLite column metadata for one table.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name to inspect through a bound parameter.
+
+    Returns:
+        A tuple describing column order, names, types, nullability, defaults,
+        primary-key positions, and hidden/generated-column status.
+    """
     rows = connection.exec_driver_sql(
         "SELECT * FROM pragma_table_xinfo(?)",
         (table_name,),
@@ -270,6 +338,16 @@ def _table_xinfo(connection: Connection, table_name: str):
 
 
 def _table_options(connection: Connection, table_name: str):
+    """Read SQLite table kind, column count, rowid mode, and strict mode.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name to inspect.
+
+    Returns:
+        A normalized table-options tuple, or ``None`` when exactly one matching
+        main-schema table is not present.
+    """
     rows = connection.exec_driver_sql(
         """
         SELECT type, ncol, wr, strict
@@ -285,6 +363,16 @@ def _table_options(connection: Connection, table_name: str):
 
 
 def _table_sql(connection: Connection, table_name: str) -> str | None:
+    """Return the canonical CREATE statement stored for a SQLite table.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name to locate in ``sqlite_master``.
+
+    Returns:
+        The stored ``CREATE TABLE`` SQL, or ``None`` when the table is missing,
+        duplicated, or does not have textual SQL.
+    """
     rows = connection.exec_driver_sql(
         """
         SELECT sql
@@ -299,6 +387,16 @@ def _table_sql(connection: Connection, table_name: str) -> str | None:
 
 
 def _index_fingerprints(connection: Connection, table_name: str):
+    """Collect normalized definitions for every index associated with a table.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name whose indexes are inspected.
+
+    Returns:
+        A mapping from index name to uniqueness, origin, partial-index status,
+        and ordered key-column metadata.
+    """
     indexes = {}
     for row in connection.exec_driver_sql(
         "SELECT * FROM pragma_index_list(?)",
@@ -329,6 +427,16 @@ def _index_fingerprints(connection: Connection, table_name: str):
 
 
 def _related_objects(connection: Connection, table_name: str):
+    """List non-internal SQLite objects attached to a table.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name whose objects are inspected.
+
+    Returns:
+        A set of ``(type, name, table_name)`` tuples covering the table, indexes,
+        triggers, and any other related non-internal objects.
+    """
     return {
         (row[0], row[1], row[2])
         for row in connection.exec_driver_sql(
@@ -350,6 +458,19 @@ def _matches_supported_table(
     expected_xinfo,
     expected_indexes,
 ) -> bool:
+    """Authenticate a live SQLite table against an exact supported fingerprint.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        table_name: The trusted table name to authenticate.
+        expected_sql: The supported ``CREATE TABLE`` declaration.
+        expected_xinfo: The expected extended column metadata.
+        expected_indexes: The complete expected index fingerprint mapping.
+
+    Returns:
+        ``True`` only when declaration contents, column metadata, table options,
+        indexes, and related object inventory all match the supported schema.
+    """
     table_sql = _table_sql(connection, table_name)
     if table_sql is None:
         return False
@@ -375,6 +496,14 @@ def _matches_supported_table(
 
 
 def _existing_tables(connection: Connection) -> set[str]:
+    """Return every table name currently registered in the SQLite database.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+
+    Returns:
+        A set containing table names from ``sqlite_master``.
+    """
     return {
         row[0]
         for row in connection.exec_driver_sql(
@@ -384,6 +513,20 @@ def _existing_tables(connection: Connection) -> set[str]:
 
 
 def _read_schema_version(connection: Connection, tables: set[str]) -> int | None:
+    """Validate and read the single supported schema-version marker.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        tables: The complete set of currently existing table names.
+
+    Returns:
+        The recorded integer schema version, or ``None`` when the version table
+        does not exist.
+
+    Raises:
+        MigrationError: If the version table, its row, or its version value does
+            not exactly match a supported state.
+    """
     if MIGRATION_TABLE not in tables:
         return None
     if not _matches_supported_table(
@@ -408,6 +551,19 @@ def _read_schema_version(connection: Connection, tables: set[str]) -> int | None
 
 
 def _inspect_schema(connection: Connection) -> str:
+    """Classify the database as absent, legacy, current, or unknown.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+
+    Returns:
+        ``"absent"``, ``"legacy"``, ``"current"``, or ``"unknown"`` after
+        authenticating tables, constraints, indexes, objects, and version state.
+
+    Raises:
+        MigrationError: If a leftover temporary table or contradictory version
+            marker makes the database unsafe to classify.
+    """
     tables = _existing_tables(connection)
     if TEMP_APPLICATIONS_TABLE in tables:
         raise MigrationError("inspect-schema")
@@ -445,6 +601,19 @@ def _inspect_schema(connection: Connection) -> str:
 
 
 def _convert_income(raw_income) -> Decimal:
+    """Validate a legacy income value for exact integer-cent storage.
+
+    Args:
+        raw_income: The numeric value read from a supported legacy row.
+
+    Returns:
+        A finite ``Decimal`` representing a supported non-negative CAD amount.
+
+    Raises:
+        ValueError: If the value is non-finite, exceeds two decimal places, or
+            falls outside the current model's supported range.
+        InvalidOperation: If the legacy value cannot be parsed as a decimal.
+    """
     income = Decimal(str(raw_income))
     cents = income * 100
     if (
@@ -458,6 +627,19 @@ def _convert_income(raw_income) -> Decimal:
 
 
 def _convert_probability(raw_coefficient) -> Decimal:
+    """Convert a scaled legacy probability integer to an exact decimal.
+
+    Args:
+        raw_coefficient: The integer coefficient stored by the legacy SQLite
+            numeric representation.
+
+    Returns:
+        The exact probability obtained by dividing by the legacy scale.
+
+    Raises:
+        ValueError: If the value is boolean, non-integer, negative, or at least
+            the full legacy probability scale.
+    """
     if (
         isinstance(raw_coefficient, bool)
         or not isinstance(raw_coefficient, int)
@@ -469,6 +651,19 @@ def _convert_probability(raw_coefficient) -> Decimal:
 
 
 def _convert_legacy_row(row) -> dict:
+    """Translate one authenticated legacy row into current model values.
+
+    Args:
+        row: A SQLAlchemy mapping containing every legacy application column.
+
+    Returns:
+        A dictionary ready for insertion into the current applications table,
+        including exact income, exact probability, and normalized name key.
+
+    Raises:
+        ValueError: If the timestamp or any converted numeric value is not in a
+            supported legacy representation.
+    """
     raw_timestamp = row["submitted_at"]
     if not isinstance(raw_timestamp, str):
         raise ValueError
@@ -492,7 +687,35 @@ def _convert_legacy_row(row) -> dict:
     }
 
 
+def _index_name(index):
+    """Return an index name for deterministic recreation order.
+
+    Args:
+        index: A named SQLAlchemy index belonging to the applications table.
+
+    Returns:
+        The index's stable database name.
+    """
+    return index.name
+
+
 def _migrate_legacy_applications(connection: Connection) -> None:
+    """Rebuild the legacy applications table without losing immutable records.
+
+    Args:
+        connection: The connection holding the exclusive migration transaction.
+
+    Raises:
+        MigrationError: If the rebuilt table does not contain exactly the same
+            record count and primary-key set as the legacy source.
+        ValueError: If any supported legacy row cannot be converted safely.
+
+    Notes:
+        The function creates a constrained temporary current-schema table,
+        converts every row, validates identity preservation, replaces the legacy
+        table, and recreates all current indexes. Its caller owns commit and
+        rollback.
+    """
     columns_sql = ", ".join(_APPLICATION_COLUMNS)
     source_rows = connection.exec_driver_sql(
         f"SELECT {columns_sql} FROM applications ORDER BY id"
@@ -527,11 +750,21 @@ def _migrate_legacy_applications(connection: Connection) -> None:
     connection.exec_driver_sql(
         f"ALTER TABLE {TEMP_APPLICATIONS_TABLE} RENAME TO applications"
     )
-    for index in sorted(Application.__table__.indexes, key=lambda item: item.name):
+    for index in sorted(Application.__table__.indexes, key=_index_name):
         index.create(bind=connection)
 
 
 def _record_schema_version(connection: Connection, version: int) -> None:
+    """Create or update the single-row schema-version marker.
+
+    Args:
+        connection: The connection holding the active migration transaction.
+        version: The current supported schema version to persist.
+
+    Notes:
+        This operation remains inside the caller's transaction and is idempotent
+        for repeated application startups.
+    """
     connection.exec_driver_sql(
         """
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -550,6 +783,24 @@ def _record_schema_version(connection: Connection, version: int) -> None:
 
 
 def ensure_sqlite_schema(engine: Engine) -> None:
+    """Authenticate, create, or migrate the SQLite schema in one transaction.
+
+    Args:
+        engine: The configured SQLite SQLAlchemy engine.
+
+    Raises:
+        MigrationError: If the connection or exclusive transaction cannot begin,
+            the schema is unsupported, row conversion or validation fails, or
+            rollback cannot be confirmed. The ``stage`` attribute identifies a
+            sanitized failure boundary for operators.
+
+    Notes:
+        Startup acquires ``BEGIN IMMEDIATE`` before inspection. Fresh databases
+        are created, exact legacy schemas are migrated, current schemas are
+        adopted idempotently, and unknown lookalikes are rejected. Any failure
+        is rolled back; a connection whose rollback fails is invalidated so the
+        pool cannot retry and leak the raw database error.
+    """
     try:
         connection = engine.connect()
     except DBAPIError:

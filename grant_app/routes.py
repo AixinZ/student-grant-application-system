@@ -27,6 +27,15 @@ MAX_HISTORY_PAGE = (2**63 - 1) // 20 + 1
 
 
 def _positive_int(value: str | None) -> int:
+    """Normalize a query-string value to a safe, positive history page number.
+
+    Args:
+        value: The raw page parameter, or ``None`` when it was omitted.
+
+    Returns:
+        The parsed one-based page number, or ``1`` when the value is invalid,
+        non-positive, or too large for a safe SQLite offset.
+    """
     try:
         parsed = int(value) if value is not None else 1
     except ValueError:
@@ -36,11 +45,27 @@ def _positive_int(value: str | None) -> int:
 
 @web.get("/")
 def index():
+    """Redirect the site root to the new-application form.
+
+    Returns:
+        A redirect response targeting ``/applications/new``.
+    """
     return redirect(url_for("web.application_new"))
 
 
 @web.route("/applications/new", methods=["GET", "POST"])
 def application_new():
+    """Display the application form and process valid submissions.
+
+    Returns:
+        The empty or invalid form page, a redirect to the immutable detail page
+        after successful creation, or a 503 form response when approval or
+        persistence fails safely. Invalid POST data returns status 422.
+
+    Notes:
+        Successful submissions create one database record. Approval and database
+        errors are sanitized before logging and never create a partial record.
+    """
     form = StudentApplicationForm()
     if form.validate_on_submit():
         try:
@@ -70,6 +95,12 @@ def application_new():
 
 @web.get("/applications")
 def application_history():
+    """Render filtered, paginated, read-only application history.
+
+    Returns:
+        The history page with normalized name, decision, and page filters plus
+        pagination metadata from the repository.
+    """
     name_query = request.args.get("q", "").strip()
     requested_decision = request.args.get("decision", "")
     valid_decisions = {decision.value for decision in Decision}
@@ -87,6 +118,17 @@ def application_history():
 
 @web.get("/applications/<int:application_id>")
 def application_detail(application_id: int):
+    """Render every stored field for one immutable application record.
+
+    Args:
+        application_id: The primary key captured from the request URL.
+
+    Returns:
+        The application detail page with display labels for coded choices.
+
+    Raises:
+        NotFound: If no application exists with the requested identifier.
+    """
     application = ApplicationRepository().get(application_id)
     if application is None:
         abort(404)

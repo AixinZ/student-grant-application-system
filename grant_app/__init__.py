@@ -22,6 +22,15 @@ from .migrations import (
 
 
 def _validate_sqlite_database_uri(database_uri: object) -> None:
+    """Require the configured SQLAlchemy URL to identify a SQLite database.
+
+    Args:
+        database_uri: The configured SQLAlchemy database URL or URL-like value.
+
+    Raises:
+        RuntimeError: If the value is not a valid SQLAlchemy URL or selects a
+            database dialect other than SQLite.
+    """
     try:
         url = make_url(database_uri)
     except (ArgumentError, TypeError) as error:
@@ -35,21 +44,67 @@ def _validate_sqlite_database_uri(database_uri: object) -> None:
 
 
 def _register_error_handlers(app: Flask) -> None:
+    """Attach privacy-safe HTTP and unexpected-exception handlers to the app.
+
+    Args:
+        app: The Flask application receiving the handlers.
+
+    Notes:
+        Server-error handlers roll back the database session and log only
+        sanitized diagnostic metadata before rendering a safe response page.
+    """
     @app.errorhandler(CSRFError)
     @app.errorhandler(400)
     def bad_request(_error):
+        """Render the safe response used for invalid and CSRF-failed requests.
+
+        Args:
+            _error: The Flask or CSRF error that selected this handler.
+
+        Returns:
+            A rendered error page paired with HTTP status 400.
+        """
         return render_template("errors/400.html"), 400
 
     @app.errorhandler(404)
     def not_found(_error):
+        """Render the safe response for missing pages or application records.
+
+        Args:
+            _error: The not-found error that selected this handler.
+
+        Returns:
+            A rendered error page paired with HTTP status 404.
+        """
         return render_template("errors/404.html"), 404
 
     @app.errorhandler(413)
     def request_too_large(_error):
+        """Render the response for requests exceeding the configured size limit.
+
+        Args:
+            _error: The request-too-large error that selected this handler.
+
+        Returns:
+            A rendered error page paired with HTTP status 413.
+        """
         return render_template("errors/413.html"), 413
 
     @app.errorhandler(500)
     def internal_server_error(error):
+        """Roll back and render a privacy-safe internal-server-error response.
+
+        Args:
+            error: The HTTP 500 wrapper or original exception supplied by Flask.
+
+        Returns:
+            A rendered error page paired with HTTP status 500.
+
+        Notes:
+            The underlying exception is recorded through the sanitized
+            diagnostic logger; submitted values and exception messages are not
+            logged.
+        """
         db.session.rollback()
         original_error = getattr(error, "original_exception", None) or error
         log_exception_context(
@@ -59,6 +114,15 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(Exception)
     def unexpected_error(error):
+        """Handle uncaught non-HTTP exceptions without exposing their details.
+
+        Args:
+            error: The uncaught exception raised during request processing.
+
+        Returns:
+            The original HTTP exception when applicable, otherwise a rendered
+            error page paired with HTTP status 500.
+        """
         if isinstance(error, HTTPException):
             return error
         db.session.rollback()
@@ -67,6 +131,20 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def create_app(test_config: dict[str, object] | None = None) -> Flask:
+    """Build a configured Flask application and prepare its SQLite schema.
+
+    Args:
+        test_config: Optional configuration overrides applied after the default
+            environment-backed settings.
+
+    Returns:
+        A fully initialized Flask application with routes, template filters,
+        extensions, logging, error handlers, and database schema registered.
+
+    Raises:
+        RuntimeError: If ``SECRET_KEY`` is missing, the database URL is invalid
+            or non-SQLite, or schema inspection/migration cannot complete safely.
+    """
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
     if test_config:

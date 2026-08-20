@@ -5,7 +5,18 @@ from pathlib import Path
 
 
 def log_exception_context(logger, event: str, error: BaseException) -> None:
-    """Log actionable exception metadata without messages, values, or locals."""
+    """Log actionable exception metadata without messages, values, or locals.
+
+    Args:
+        logger: The configured application logger that receives the event.
+        event: A stable event name identifying the failed operation.
+        error: The exception whose type, cause type, and final traceback
+            location are safe to record.
+
+    Notes:
+        This function intentionally omits exception messages, SQL parameters,
+        local variables, and submitted application data from the log entry.
+    """
     frames = traceback.extract_tb(error.__traceback__)
     if frames:
         frame = frames[-1]
