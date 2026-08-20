@@ -1,3 +1,5 @@
+"""Handle application entry, read-only history, and detail-page HTTP requests."""
+
 from flask import (
     Blueprint,
     abort,

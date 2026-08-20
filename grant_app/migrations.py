@@ -1,3 +1,5 @@
+"""Authenticate SQLite schemas and transactionally migrate supported legacy records."""
+
 import re
 from datetime import datetime
 from decimal import Decimal

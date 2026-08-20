@@ -1,3 +1,5 @@
+"""Define immutable data objects exchanged between forms, services, and approval engines."""
+
 from dataclasses import dataclass
 from decimal import Decimal
 

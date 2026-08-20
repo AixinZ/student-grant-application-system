@@ -1,3 +1,5 @@
+"""Define the application ORM model, exact SQLite value types, and search-key updates."""
+
 import unicodedata
 from collections.abc import Iterable
 from datetime import datetime, timezone

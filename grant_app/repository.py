@@ -1,3 +1,5 @@
+"""Provide the persistence and read-only query boundary for grant applications."""
+
 from flask_sqlalchemy.pagination import Pagination
 from sqlalchemy import select
 

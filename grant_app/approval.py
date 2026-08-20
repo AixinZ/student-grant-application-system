@@ -1,3 +1,5 @@
+"""Define approval engines and the current random-probability decision logic."""
+
 import random
 from collections.abc import Callable
 from decimal import Decimal

@@ -1,3 +1,5 @@
+"""Format probabilities, CAD amounts, and timestamps for display in Jinja templates."""
+
 from datetime import datetime, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo

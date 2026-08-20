@@ -1,3 +1,5 @@
+"""Provide shared decision values and the choices displayed by application forms."""
+
 from enum import StrEnum
 
 

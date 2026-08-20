@@ -1,3 +1,5 @@
+"""Record useful exception context without logging application data or error values."""
+
 import traceback
 from pathlib import Path
 

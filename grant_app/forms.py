@@ -1,3 +1,5 @@
+"""Validate submitted student data and convert valid form values into domain input."""
+
 import unicodedata
 from decimal import Decimal
 

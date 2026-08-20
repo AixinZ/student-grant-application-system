@@ -1,3 +1,5 @@
+// Improves form feedback by focusing errors and preventing duplicate valid submissions.
+
 const applicationForm = document.querySelector("#application-form");
 const errorSummary = document.querySelector("#error-summary");
 

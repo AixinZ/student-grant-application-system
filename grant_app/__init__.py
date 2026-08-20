@@ -1,3 +1,5 @@
+"""Create and configure the Flask app, its integrations, and safe error handling."""
+
 from pathlib import Path
 
 from flask import Flask, render_template

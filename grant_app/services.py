@@ -1,3 +1,5 @@
+"""Coordinate approval evaluation and persistence for a new grant application."""
+
 from .approval import ApprovalEngine
 from .domain import ApplicationInput
 from .models import Application

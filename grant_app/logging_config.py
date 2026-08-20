@@ -1,3 +1,5 @@
+"""Configure bounded rotating logs for privacy-conscious local diagnostics."""
+
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
