@@ -16,6 +16,7 @@ from wtforms.validators import (
 )
 
 from .constants import EDUCATION_CHOICES, MARITAL_STATUS_CHOICES, PROVINCE_CHOICES
+from .data_generator_schema import MAX_ROWS, MIN_ROWS
 from .domain import ApplicationInput
 
 
@@ -109,6 +110,29 @@ def validate_income_decimal_places(_form, field) -> None:
     """
     if field.data is not None and field.data.as_tuple().exponent < -2:
         raise ValidationError("Annual income may have at most two decimal places.")
+
+
+class DataGeneratorForm(FlaskForm):
+    row_count = IntegerField(
+        "Number of rows",
+        validators=[
+            InputRequired(message="Number of rows is required."),
+            NumberRange(
+                min=MIN_ROWS,
+                max=MAX_ROWS,
+                message=(
+                    f"Number of rows must be between {MIN_ROWS:,} and {MAX_ROWS:,}."
+                ),
+            ),
+        ],
+    )
+
+    def __init__(self, *args, **kwargs) -> None:
+        data = kwargs.get("data")
+        if data is not None and "formdata" not in kwargs and not args:
+            kwargs["formdata"] = MultiDict(data)
+            kwargs.pop("data")
+        super().__init__(*args, **kwargs)
 
 
 class StudentApplicationForm(FlaskForm):

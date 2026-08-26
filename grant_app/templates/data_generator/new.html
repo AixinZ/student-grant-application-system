@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Data Generator{% endblock %}
+
+{% block content %}
+  <h2>Data Generator</h2>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    {{ form.row_count.label }}
+    {{ form.row_count() }}
+    {% for error in form.row_count.errors %}
+      <p>{{ error }}</p>
+    {% endfor %}
+    <button type="submit">Generate Excel file</button>
+  </form>
+{% endblock %}

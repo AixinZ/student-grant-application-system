@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from grant_app.forms import StudentApplicationForm
+from grant_app.forms import DataGeneratorForm, StudentApplicationForm
 
 
 VALID_PAYLOAD = {
@@ -120,3 +120,18 @@ def test_to_domain_requires_successful_validation():
 
     with pytest.raises(ValueError, match="valid"):
         form.to_domain()
+
+
+@pytest.mark.parametrize("value", ["10000", "250000"])
+def test_data_generator_form_accepts_inclusive_limits(value):
+    form = DataGeneratorForm(data={"row_count": value})
+
+    assert form.validate()
+
+
+@pytest.mark.parametrize("value", ["", "9999", "250001", "10.5", "many"])
+def test_data_generator_form_rejects_invalid_counts(value):
+    form = DataGeneratorForm(data={"row_count": value})
+
+    assert not form.validate()
+    assert form.row_count.errors

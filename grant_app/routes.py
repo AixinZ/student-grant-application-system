@@ -1,4 +1,8 @@
-"""Handle application entry, read-only history, and detail-page HTTP requests."""
+"""Handle application, history, detail, and synthetic-data HTTP requests."""
+
+import tempfile
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from flask import (
     Blueprint,
@@ -8,21 +12,28 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     url_for,
 )
 from sqlalchemy.exc import SQLAlchemyError
 
 from .approval import ApprovalEngineError
 from .constants import Decision, EDUCATION_CHOICES, MARITAL_STATUS_CHOICES
+from .data_generator import generate_rows
 from .diagnostics import log_exception_context
-from .forms import StudentApplicationForm
+from .forms import DataGeneratorForm, StudentApplicationForm
 from .repository import ApplicationRepository
 from .services import create_application
+from .xlsx_export import write_xlsx
 
 
 web = Blueprint("web", __name__)
 
 RETRY_MESSAGE = "We could not process the application right now. Please try again."
+GENERATOR_RETRY_MESSAGE = (
+    "We could not generate the Excel file right now. Please try again."
+)
+XLSX_MIMETYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_HISTORY_PAGE = (2**63 - 1) // 20 + 1
 
 
@@ -92,6 +103,41 @@ def application_new():
 
     status = 422 if request.method == "POST" else 200
     return render_template("applications/new.html", form=form), status
+
+
+@web.route("/data-generator", methods=["GET", "POST"])
+def data_generator():
+    """Render the row-count form or return a generated XLSX attachment."""
+    form = DataGeneratorForm()
+    if form.validate_on_submit():
+        output = None
+        try:
+            output = tempfile.TemporaryFile(mode="w+b")
+            rows = generate_rows(form.row_count.data)
+            write_xlsx(output, rows, expected_rows=form.row_count.data)
+            date_stamp = datetime.now(ZoneInfo("America/Vancouver")).strftime(
+                "%Y%m%d"
+            )
+            response = send_file(
+                output,
+                mimetype=XLSX_MIMETYPE,
+                as_attachment=True,
+                download_name=(
+                    f"synthetic_fraud_data_{form.row_count.data}_{date_stamp}.xlsx"
+                ),
+                max_age=0,
+            )
+            response.call_on_close(output.close)
+            return response
+        except Exception as error:
+            if output is not None:
+                output.close()
+            log_exception_context(current_app.logger, "data_generation_failed", error)
+            flash(GENERATOR_RETRY_MESSAGE, "error")
+            return render_template("data_generator/new.html", form=form), 503
+
+    status = 422 if request.method == "POST" else 200
+    return render_template("data_generator/new.html", form=form), status
 
 
 @web.get("/applications")
