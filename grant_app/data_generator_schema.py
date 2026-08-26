@@ -63,3 +63,11 @@ RISK_SCENARIO_WEIGHTS = (
     ("R19_OUTSIDE_SK_AT_FOREIGN_INSTITUTION", 4),
     ("R20_FOREIGN_STUDENT_OUTSIDE_SK", 4),
 )
+
+CATEGORY_PROFILES = (
+    ("Single Independent", ("Single", "Separated", "Divorced", "Widowed"), 0, 48),
+    ("Single Dependent", ("Single",), 0, 14),
+    ("Single Parent", ("Single", "Separated", "Divorced", "Widowed"), 1, 23),
+    ("Married", ("Married", "Common-Law"), 0, 15),
+)
+MARITAL_STATUSES = ("Single", "Separated", "Married", "Common-Law", "Divorced", "Widowed")
