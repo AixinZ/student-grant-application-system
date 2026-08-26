@@ -40,9 +40,13 @@ def _column_name(index: int) -> str:
     return result
 
 
+def _is_numeric(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _cell(reference: str, value: object, *, header: bool = False) -> bytes:
     style = ' s="1"' if header else ""
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if _is_numeric(value):
         return f'<c r="{reference}"{style}><v>{value}</v></c>'.encode()
     text = str(value or "")
     preserve = ' xml:space="preserve"' if text != text.strip() else ""
@@ -52,7 +56,7 @@ def _cell(reference: str, value: object, *, header: bool = False) -> bytes:
     ).encode()
 
 
-def write_xlsx(
+def _write_xlsx(
     output: BinaryIO,
     rows: Iterable[Mapping[str, object]],
     expected_rows: int,
@@ -99,7 +103,7 @@ def write_xlsx(
                 sheet.write(f'<row r="{excel_row}">'.encode())
                 for column, header in enumerate(HEADERS, start=1):
                     value = record[header]
-                    if header in NUMERIC_HEADERS and not isinstance(value, (int, float)):
+                    if header in NUMERIC_HEADERS and not _is_numeric(value):
                         raise TypeError(f"{header} must be numeric")
                     sheet.write(_cell(f"{_column_name(column)}{excel_row}", value))
                 sheet.write(b"</row>")
@@ -108,4 +112,18 @@ def write_xlsx(
                 raise ValueError(f"expected {expected_rows} rows but received {actual}")
             sheet.write(f'</sheetData><autoFilter ref="A1:S{last_row}"/></worksheet>'.encode())
 
-    output.seek(0)
+
+
+def write_xlsx(
+    output: BinaryIO,
+    rows: Iterable[Mapping[str, object]],
+    expected_rows: int,
+) -> None:
+    try:
+        _write_xlsx(output, rows, expected_rows)
+        output.seek(0)
+    except Exception:
+        output.seek(0)
+        output.truncate(0)
+        output.seek(0)
+        raise

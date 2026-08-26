@@ -40,7 +40,25 @@ def test_xlsx_contains_exact_headers_rows_and_numeric_cells():
 
 
 def test_xlsx_rejects_short_and_long_iterators():
+    short_output = io.BytesIO()
     with pytest.raises(ValueError, match="expected 2 rows"):
-        write_xlsx(io.BytesIO(), generate_rows(1), expected_rows=2)
+        write_xlsx(short_output, generate_rows(1), expected_rows=2)
+    assert short_output.getvalue() == b""
+    assert short_output.tell() == 0
+
+    long_output = io.BytesIO()
     with pytest.raises(ValueError, match="expected 1 rows"):
-        write_xlsx(io.BytesIO(), generate_rows(2), expected_rows=1)
+        write_xlsx(long_output, generate_rows(2), expected_rows=1)
+    assert long_output.getvalue() == b""
+    assert long_output.tell() == 0
+
+
+def test_xlsx_rejects_boolean_numeric_cell():
+    record = next(generate_rows(1))
+    record["NBR_OF_DEPENDENTS"] = True
+    output = io.BytesIO()
+
+    with pytest.raises(TypeError, match="NBR_OF_DEPENDENTS must be numeric"):
+        write_xlsx(output, [record], expected_rows=1)
+    assert output.getvalue() == b""
+    assert output.tell() == 0
