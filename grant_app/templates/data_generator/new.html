@@ -1,16 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}Data Generator{% endblock %}
+{% block title %}Data Generator · Student Grant Applications{% endblock %}
 
 {% block content %}
   <h2>Data Generator</h2>
-  <form method="post">
+  <p>Create synthetic student-grant data. A Fraud Label of Yes means at least one supported screening rule matched.</p>
+
+  {% if form.errors %}
+    <section id="error-summary" class="error-summary" role="alert" aria-labelledby="error-summary-title" tabindex="-1">
+      <h3 id="error-summary-title">Please correct the following errors</h3>
+      <ul>{% for error in form.row_count.errors %}<li><a href="#{{ form.row_count.id }}">{{ form.row_count.label.text }}: {{ error }}</a></li>{% endfor %}</ul>
+    </section>
+  {% endif %}
+
+  <form id="data-generator-form" class="application-form" method="post" novalidate>
     {{ form.hidden_tag() }}
-    {{ form.row_count.label }}
-    {{ form.row_count() }}
-    {% for error in form.row_count.errors %}
-      <p>{{ error }}</p>
-    {% endfor %}
-    <button type="submit">Generate Excel file</button>
+    <div class="form-field">
+      {{ form.row_count.label }}
+      {{ form.row_count(required=true, min="10000", max="250000", step="1", inputmode="numeric", aria_invalid="true" if form.row_count.errors else "false", aria_describedby="row-count-help " ~ form.row_count.id ~ "-error" if form.row_count.errors else "row-count-help") }}
+      <p id="row-count-help">Enter between 10,000 and 250,000 rows. Larger files may take longer.</p>
+      {% if form.row_count.errors %}<div id="{{ form.row_count.id }}-error" class="field-error">{% for error in form.row_count.errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+    </div>
+    <div class="form-actions"><button type="submit">Generate Excel File</button></div>
   </form>
 {% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/data-generator-form.js') }}" defer></script>{% endblock %}
