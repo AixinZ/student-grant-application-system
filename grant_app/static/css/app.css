@@ -142,6 +142,11 @@ select {
   padding: 0.6rem 0.75rem;
 }
 
+.csv-scoring-field-checkbox {
+  width: auto;
+  min-height: auto;
+}
+
 button {
   border: 0;
   border-radius: 0.25rem;

@@ -17,6 +17,7 @@
   let uploadId = null;
   let pollTimer = null;
   let submitting = false;
+  let uploadRequest = 0;
 
   const errorMessages = {
     file_too_large: "The CSV file is too large.",
@@ -68,6 +69,7 @@
       const checkbox = document.createElement("input");
       checkbox.id = id;
       checkbox.type = "checkbox";
+      checkbox.className = "csv-scoring-field-checkbox";
       checkbox.value = header;
       checkbox.checked = true;
       checkbox.addEventListener("change", updateSubmitState);
@@ -112,6 +114,7 @@
 
   async function uploadFile(file) {
     if (!file) return;
+    const requestId = ++uploadRequest;
     stopPolling();
     submitting = false;
     clearError();
@@ -129,10 +132,17 @@
         headers: csrfHeaders(),
         body: data,
       }).then(responseJson);
-      uploadId = upload.upload_id;
-      renderFields(upload.fields);
-      status.textContent = `Uploaded ${upload.row_count} rows. Choose output columns and score the CSV.`;
+      if (requestId !== uploadRequest) return;
+      const metadata = await fetch(
+        `/csv-scoring/uploads/${encodeURIComponent(upload.upload_id)}`,
+        { headers: csrfHeaders() },
+      ).then(responseJson);
+      if (requestId !== uploadRequest) return;
+      uploadId = metadata.upload_id;
+      renderFields(metadata.fields);
+      status.textContent = `Uploaded ${metadata.row_count} rows. Choose output columns and score the CSV.`;
     } catch (failure) {
+      if (requestId !== uploadRequest) return;
       status.textContent = "Choose a CSV to begin.";
       showError(failure.message);
     }
