@@ -181,6 +181,29 @@ def test_invalid_form_links_summary_and_errors_to_invalid_control(client):
     assert b'id="age-error"' in response.data
 
 
+def test_data_generator_page_has_accessible_form_and_navigation(client):
+    response = client.get("/data-generator")
+
+    assert response.status_code == 200
+    assert b'href="/data-generator"' in response.data
+    assert b'id="data-generator-form"' in response.data
+    assert b'id="row-count-help"' in response.data
+    assert b'min="10000"' in response.data
+    assert b'max="250000"' in response.data
+    assert b'step="1"' in response.data
+    assert b'<script src="/static/js/data-generator-form.js" defer></script>' in response.data
+
+
+def test_invalid_generator_form_links_summary_to_row_count(client):
+    response = client.post("/data-generator", data={"row_count": "9999"})
+
+    assert response.status_code == 422
+    assert b'id="error-summary"' in response.data
+    assert b'href="#row_count"' in response.data
+    assert b'aria-describedby="row-count-help row_count-error"' in response.data
+    assert b'id="row_count-error"' in response.data
+
+
 def test_unexpected_service_error_rolls_back_and_logs_no_submitted_pii(
     production_style_app, production_style_client, caplog
 ):

@@ -52,6 +52,19 @@ accepting requests, startup also automatically migrates the known legacy schema.
 Repeated startup is safe and does not reconvert records that were already
 migrated. To stop the server, return to its terminal and press `Ctrl-C`.
 
+## Generate synthetic screening data
+
+Open **Data Generator** from the header navigation. Enter a whole-number row
+count from **10,000** through **250,000**, then select **Generate Excel File** to
+download the XLSX. The browser downloads an Excel workbook containing the
+requested number of synthetic student-grant records.
+
+The final **Fraud Label** column contains `Yes` when at least one supported
+screening rule matches that synthetic record and `No` when none match. A `Yes`
+value is a screening signal for review; it is not a finding or confirmation of
+fraud. Use the generated data only for testing and demonstration, not for
+decisions about real applicants.
+
 ## Test
 
 Run the automated test suite with:

@@ -85,6 +85,37 @@ Degree`, marital status `Single`, dependents `0`, and province `British Columbia
 - [ ] Confirm both outcomes convey their decision with text (`Approved` or `Not
   Approved`), so the meaning is understandable without relying on badge color.
 
+## Synthetic data generator
+
+- [ ] Use only the keyboard to open **Data Generator** from the header, move
+  through its explanatory text, row-count field, and **Generate Excel File**
+  button, and return to both **New Application** and **Application History**.
+  Confirm all three navigation links and controls have a logical focus order
+  and clear focus indicators.
+- [ ] Submit each invalid limit: blank, `9999`, `250001`, and a fractional value
+  such as `10000.5`. Confirm no download begins, the page returns an error, and
+  focus moves to the error summary; then activate the summary link and confirm
+  focus moves to the row-count field.
+- [ ] Enter `10000` and select **Generate Excel File**. Confirm the button
+  becomes disabled while the form submits and a file named like
+  `synthetic_fraud_data_10000_YYYYMMDD.xlsx` downloads.
+- [ ] Open the 10,000-row workbook in a spreadsheet application. Confirm it has
+  one sheet, 10,001 total rows including the header, 19 columns, a frozen first
+  row, and readable, aligned data.
+- [ ] Confirm the headers are exactly `CLIENT_DEPENDENT_STATUS`,
+  `DISABILITY_STATUS_IND`, `INSTITUTION_CITY`, `INSTITUTION_PROVINCE`,
+  `INSTITUTION_COUNTRY`, `OUT_OF_PROV_IND`, `NBR_OF_DEPENDENTS`, `TOTAL_NEED`,
+  `STUDENT_AGE`, `STUDENT_CITY`, `STUDENT_PROVINCE`, `STUDENT_COUNTRY`,
+  `CLIENT_CATEGORY`, `MARITAL_STATUS`, `GRANTS_ONLY_IND`,
+  `CRA_MARITAL_STATUS`, `CRA_CITY`, `CRA_PROVINCE`, and `FRAUD_Label ` (including
+  the final header's trailing space).
+- [ ] Confirm every cell in the final **Fraud Label** column is populated with
+  `Yes` or `No`. Treat `Yes` as a screening-rule match that requires review,
+  not as confirmed fraud.
+- [ ] Enter `250000` and perform the large-download performance run. Confirm the
+  page remains usable, the button stays disabled during submission, the XLSX
+  download completes within 180 seconds, and the downloaded workbook opens.
+
 ## Log privacy and local persistence
 
 - [ ] After a normal fictional submission and a deliberately invalid one, inspect
