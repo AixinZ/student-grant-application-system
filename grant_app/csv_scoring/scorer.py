@@ -141,7 +141,10 @@ def _original_selected_headers(source: Path, selected_headers: tuple[str, ...]) 
 
 def _score_batch(batch: Sequence[Mapping[str, object]], model: ModelSpec, scores: deque[float]) -> None:
     try:
-        produced = model.adapter.score_rows(batch)
+        required_rows = tuple(
+            {column: row[column] for column in model.required_columns} for row in batch
+        )
+        produced = model.adapter.score_rows(required_rows)
     except Exception:
         raise _failed() from None
     scores.extend(_validated_scores(produced, len(batch)))

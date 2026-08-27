@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -94,6 +95,49 @@ def test_expired_upload_and_job_are_removed_without_sqlite(tmp_path):
         store.get_upload(parsed.upload_id)
     with pytest.raises(JobNotFoundError):
         store.get_job(job.job_id)
+
+
+def test_cleanup_removes_stale_staging_and_unreadable_manifest_directories(tmp_path):
+    store = FileStore(tmp_path / "store", ttl_seconds=10)
+    stale_staging = store.root / ".csv-upload-interrupted"
+    stale_staging.write_text("partial", encoding="utf-8")
+    stale_upload = store.root / "uploads" / "interrupted_upload"
+    stale_upload.mkdir()
+    stale_job = store.root / "jobs" / "interrupted_job"
+    stale_job.mkdir()
+    (stale_job / "manifest.json").write_text("not json", encoding="utf-8")
+    active_staging = store.root / "upload-active.csv"
+    active_staging.write_text("still writing", encoding="utf-8")
+    active_upload = store.root / "uploads" / "active_upload"
+    active_upload.mkdir()
+    for path in (stale_staging, stale_upload, stale_job):
+        os.utime(path, (89.0, 89.0))
+    os.utime(active_upload, (99.0, 99.0))
+
+    assert store.cleanup_expired(now=100.0) == 3
+    assert not stale_staging.exists()
+    assert not stale_upload.exists()
+    assert not stale_job.exists()
+    assert active_staging.exists()
+    assert active_upload.exists()
+
+
+def test_cleanup_reports_failed_orphan_deletion_without_logging_its_path(tmp_path, monkeypatch, caplog):
+    store = FileStore(tmp_path / "store", ttl_seconds=10)
+    stale_upload = store.root / "uploads" / "interrupted_upload"
+    stale_upload.mkdir()
+    os.utime(stale_upload, (89.0, 89.0))
+
+    def fail_rmtree(path):
+        raise OSError("private path must not be logged")
+
+    monkeypatch.setattr("grant_app.csv_scoring.store.shutil.rmtree", fail_rmtree)
+    caplog.set_level(logging.ERROR, logger="grant_app.csv_scoring.store")
+
+    assert store.cleanup_expired(now=100.0) == 0
+    assert stale_upload.exists()
+    assert "csv_scoring_orphan_cleanup_failed" in caplog.text
+    assert str(stale_upload) not in caplog.text
 
 
 def test_status_transitions_require_monotonic_progress_and_remove_failed_result(tmp_path):

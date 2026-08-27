@@ -67,6 +67,32 @@ def test_score_job_preserves_source_order_uses_original_selected_headers_and_rep
     ]
 
 
+def test_score_job_passes_only_required_model_columns_to_adapter(tmp_path):
+    class SpyAdapter:
+        def __init__(self):
+            self.rows = []
+
+        def score_rows(self, rows):
+            self.rows.extend(dict(row) for row in rows)
+            return [0.5] * len(rows)
+
+    source = tmp_path / "source.csv"
+    output = tmp_path / "result.csv"
+    write_source(source, 2, column_count=4)
+    adapter = SpyAdapter()
+
+    score_job(
+        source,
+        output,
+        selected_headers=("Account ID",),
+        model=model(adapter),
+        chunk_size=2,
+        progress=lambda _: None,
+    )
+
+    assert adapter.rows == [{"amount": "0"}, {"amount": "1"}]
+
+
 @pytest.mark.parametrize("scores", [([],), ([float("inf")],), ([1.1],)])
 def test_score_job_rejects_invalid_adapter_output_without_leaking_values_or_partial_result(tmp_path, scores):
     class InvalidAdapter:

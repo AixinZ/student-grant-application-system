@@ -109,6 +109,16 @@ def test_upload_metadata_job_status_and_atomic_download_expose_only_safe_metadat
     assert download.data == b"\xef\xbb\xbfname,SCORE\r\nAda,0.250000\r\nBob,0.250000\r\n"
 
 
+def test_upload_uses_the_configured_retention_ttl(tmp_path, monkeypatch):
+    app = scoring_app(tmp_path, CSV_SCORING_TTL_SECONDS=17)
+    monkeypatch.setattr("grant_app.csv_scoring.parser.time.time", lambda: 100.0)
+
+    uploaded = upload_csv(app.test_client())
+
+    upload_id = uploaded.get_json()["upload_id"]
+    assert app.config["CSV_SCORING_STORE"].get_upload(upload_id).expires_at == 117.0
+
+
 @pytest.mark.parametrize(
     ("body", "status"),
     [

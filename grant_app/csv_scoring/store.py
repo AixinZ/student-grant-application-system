@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import shutil
@@ -13,12 +14,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from grant_app.diagnostics import log_exception_context
+
 from .errors import CsvValidationError, JobNotFoundError, UploadNotFoundError
 from .types import ParsedUpload
 
 JobStatus = Literal["queued", "running", "completed", "failed"]
 _STATUSES = frozenset(("queued", "running", "completed", "failed"))
 _IDENTIFIER_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+_LOGGER = logging.getLogger(__name__)
+_STAGING_PREFIXES = (".csv-upload-", "upload-", ".manifest-")
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,22 +200,50 @@ class FileStore:
 
     def cleanup_expired(self, now: float) -> int:
         """Remove every expired upload or job directory and return its count."""
-        removed = 0
+        removed = self._cleanup_stale_staging(now)
         for base, missing_error in ((self._uploads, UploadNotFoundError), (self._jobs, JobNotFoundError)):
             try:
                 directories = tuple(path for path in base.iterdir() if path.is_dir())
-            except OSError:
+            except OSError as error:
+                log_exception_context(_LOGGER, "csv_scoring_cleanup_scan_failed", error)
                 continue
             for directory in directories:
                 try:
                     payload = self._read_manifest(directory / "manifest.json", missing_error)
                     expires_at = float(payload["expires_at"])
                 except (KeyError, TypeError, ValueError, UploadNotFoundError, JobNotFoundError):
+                    if self._is_stale(directory, now) and self._remove_path(
+                        directory, "csv_scoring_orphan_cleanup_failed"
+                    ):
+                        removed += 1
                     continue
-                if expires_at <= now:
-                    self._remove_directory(directory)
+                if expires_at <= now and self._remove_path(directory, "csv_scoring_cleanup_failed"):
                     removed += 1
         return removed
+
+    def _cleanup_stale_staging(self, now: float) -> int:
+        """Clean parser/manifest remnants only after the configured grace period."""
+        try:
+            candidates = tuple(
+                path for path in self.root.iterdir()
+                if path.name.startswith(_STAGING_PREFIXES)
+            )
+        except OSError as error:
+            log_exception_context(_LOGGER, "csv_scoring_cleanup_scan_failed", error)
+            return 0
+        return sum(
+            1
+            for path in candidates
+            if self._is_stale(path, now)
+            and self._remove_path(path, "csv_scoring_orphan_cleanup_failed")
+        )
+
+    def _is_stale(self, path: Path, now: float) -> bool:
+        try:
+            return path.lstat().st_mtime <= now - self.ttl_seconds
+        except OSError as error:
+            log_exception_context(_LOGGER, "csv_scoring_cleanup_scan_failed", error)
+            return False
 
     def _upload_id(self, upload_id: str) -> str:
         if not self._valid_upload_identifier(upload_id):
@@ -323,9 +356,18 @@ class FileStore:
         except (OSError, json.JSONDecodeError) as error:
             raise error_type("Not found") from error
 
-    @staticmethod
-    def _remove_directory(directory: Path) -> None:
+    def _remove_directory(self, directory: Path) -> bool:
+        return self._remove_path(directory, "csv_scoring_cleanup_failed")
+
+    def _remove_path(self, path: Path, event: str) -> bool:
+        """Delete only a direct descendant of the private store root."""
         try:
-            shutil.rmtree(directory)
-        except OSError:
-            pass
+            path.absolute().relative_to(self.root)
+            if path.is_symlink() or not path.is_dir():
+                path.unlink()
+            else:
+                shutil.rmtree(path)
+            return True
+        except OSError as error:
+            log_exception_context(_LOGGER, event, error)
+            return False

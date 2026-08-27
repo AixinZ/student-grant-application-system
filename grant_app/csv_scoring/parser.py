@@ -12,8 +12,9 @@ from typing import BinaryIO, Iterable
 from .errors import CsvValidationError
 from .types import ParsedUpload
 
-_TTL_SECONDS = 3_600
 _COPY_CHUNK_SIZE = 1024 * 1024
+_DIALECT_SAMPLE_BYTES = 64 * 1024
+_DELIMITER_CANDIDATES = ",;\t|:^~"
 
 
 def canonical_header(value: str) -> str:
@@ -60,6 +61,20 @@ def _copy_stream(stream: BinaryIO, destination: Path, max_bytes: int) -> int:
     return size
 
 
+def _validate_comma_dialect(path: Path) -> None:
+    """Reject source data that uses a delimiter other than a comma."""
+    try:
+        with path.open("rb") as raw:
+            sample = raw.read(_DIALECT_SAMPLE_BYTES).decode("utf-8-sig")
+        dialect = csv.Sniffer().sniff(sample, delimiters=_DELIMITER_CANDIDATES)
+        if dialect.delimiter != ",":
+            raise _invalid()
+    except CsvValidationError:
+        raise
+    except (csv.Error, OSError, UnicodeError):
+        raise _invalid() from None
+
+
 def parse_upload(
     stream: BinaryIO,
     destination_dir: Path,
@@ -68,11 +83,14 @@ def parse_upload(
     max_bytes: int,
     min_rows: int,
     max_rows: int,
+    ttl_seconds: int,
     now: float | None = None,
 ) -> ParsedUpload:
     """Copy and validate a CSV stream, returning its staged upload metadata."""
     temporary: Path | None = None
     try:
+        if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool) or ttl_seconds < 0:
+            raise _invalid()
         destination_dir = Path(destination_dir)
         destination_dir.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -80,6 +98,7 @@ def parse_upload(
         ) as handle:
             temporary = Path(handle.name)
         size_bytes = _copy_stream(stream, temporary, max_bytes)
+        _validate_comma_dialect(temporary)
 
         headers: tuple[str, ...] | None = None
         canonical_headers: tuple[str, ...] | None = None
@@ -127,7 +146,7 @@ def parse_upload(
             canonical_headers=canonical_headers,
             row_count=row_count,
             size_bytes=size_bytes,
-            expires_at=timestamp + _TTL_SECONDS,
+            expires_at=timestamp + ttl_seconds,
         )
     except CsvValidationError:
         raise

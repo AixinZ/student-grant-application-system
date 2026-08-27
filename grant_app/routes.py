@@ -217,6 +217,7 @@ def csv_scoring_upload():
             max_bytes=current_app.config["CSV_SCORING_MAX_BYTES"],
             min_rows=current_app.config["CSV_SCORING_MIN_ROWS"],
             max_rows=current_app.config["CSV_SCORING_MAX_ROWS"],
+            ttl_seconds=current_app.config["CSV_SCORING_TTL_SECONDS"],
         )
         store.save_upload(parsed)
         return jsonify(_upload_payload(store.get_upload(parsed.upload_id))), 201
