@@ -99,6 +99,24 @@ def test_isolation_forest_adapter_loads_manifest_orders_columns_and_calibrates(t
     assert adapter.score_rows(({"amount": 10, "account id": "A"},)) == [0.75]
 
 
+def test_isolation_forest_adapter_loads_dict_wrapped_pipeline_artifact(tmp_path):
+    artifact_path = tmp_path / "wrapped-model.joblib"
+    manifest_path = Path(__file__).parent / "fixtures/csv_scoring/iforest_manifest.json"
+    joblib.dump(
+        {
+            "pipeline": TinyIsolationForest(),
+            "headers": ["account id", "amount"],
+            "metadata": {"trained_at": "2026-08-26"},
+        },
+        artifact_path,
+    )
+
+    adapter = IsolationForestAdapter.from_artifact(artifact_path, manifest_path)
+
+    assert adapter.is_available()
+    assert adapter.score_rows(({"amount": 10, "account id": "A"},)) == [0.75]
+
+
 def test_unavailable_isolation_forest_adapter_can_be_registered_without_leaking_details():
     manifest_path = Path(__file__).parent / "fixtures/csv_scoring/iforest_manifest.json"
     adapter = IsolationForestAdapter.from_artifact(Path("/secret/iforest.joblib"), manifest_path)

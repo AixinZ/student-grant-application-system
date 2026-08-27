@@ -49,8 +49,8 @@ class IsolationForestAdapter:
             return cls()
 
         try:
-            pipeline = joblib.load(Path(artifact_path))
-            if cls._stored_headers(pipeline) != required:
+            pipeline, stored_headers = cls._unwrap_artifact(joblib.load(Path(artifact_path)))
+            if stored_headers != required:
                 raise ValueError
             return cls(
                 pipeline=pipeline,
@@ -82,6 +82,23 @@ class IsolationForestAdapter:
         if headers is None:
             raise ValueError("Artifact lacks feature headers")
         return tuple(canonical_header(str(header)) for header in headers)
+
+    @classmethod
+    def _unwrap_artifact(cls, artifact: object) -> tuple[object, tuple[str, ...]]:
+        """Accept the documented wrapper format or a direct estimator artifact."""
+        if isinstance(artifact, dict):
+            pipeline = artifact.get("pipeline")
+            headers = artifact.get("headers")
+            if pipeline is None or isinstance(headers, (str, bytes)):
+                raise ValueError
+            try:
+                canonical_headers = tuple(canonical_header(str(header)) for header in headers)
+            except TypeError:
+                raise ValueError from None
+            if not canonical_headers or any(not header for header in canonical_headers):
+                raise ValueError
+            return pipeline, canonical_headers
+        return artifact, cls._stored_headers(artifact)
 
     def score_rows(self, rows: Sequence[Mapping[str, object]]) -> Sequence[float]:
         """Return calibrated risk scores in deterministic manifest header order."""
