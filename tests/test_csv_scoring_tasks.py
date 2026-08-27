@@ -7,11 +7,11 @@ from grant_app.csv_scoring.tasks import TaskExecutor
 from grant_app.csv_scoring.types import ParsedUpload
 
 
-def parsed_upload(tmp_path: Path) -> ParsedUpload:
+def parsed_upload(tmp_path: Path, upload_id: str) -> ParsedUpload:
     source = tmp_path / "staged.csv"
     source.write_text("name,value\na,1\n", encoding="utf-8")
     return ParsedUpload(
-        upload_id="upload_0123456789abcdef",
+        upload_id=upload_id,
         path=source,
         headers=("name", "value"),
         canonical_headers=("name", "value"),
@@ -23,7 +23,7 @@ def parsed_upload(tmp_path: Path) -> ParsedUpload:
 
 def make_job(tmp_path):
     store = FileStore(tmp_path / "store", ttl_seconds=3600)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
     store.save_upload(parsed)
     return store, store.create_job(parsed.upload_id, "iforest", ("name",), now=100.0)
 

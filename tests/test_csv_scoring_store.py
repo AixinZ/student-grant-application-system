@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from grant_app.csv_scoring.errors import JobNotFoundError, UploadNotFoundError
+from grant_app.csv_scoring.errors import CsvValidationError, JobNotFoundError, UploadNotFoundError
 from grant_app.csv_scoring.store import FileStore
 from grant_app.csv_scoring.types import ParsedUpload
 
@@ -25,7 +25,7 @@ def parsed_upload(tmp_path: Path, upload_id: str = "upload_0123456789abcdef") ->
 
 def test_save_upload_moves_source_and_persists_only_metadata(tmp_path):
     store = FileStore(tmp_path / "store", ttl_seconds=3600)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
 
     store.save_upload(parsed)
 
@@ -40,7 +40,7 @@ def test_save_upload_moves_source_and_persists_only_metadata(tmp_path):
 
 def test_job_ids_are_random_and_manifests_are_immutable(tmp_path):
     store = FileStore(tmp_path / "store", ttl_seconds=3600)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
     store.save_upload(parsed)
 
     first = store.create_job(parsed.upload_id, "iforest", ("name",), now=100.0)
@@ -54,7 +54,7 @@ def test_job_ids_are_random_and_manifests_are_immutable(tmp_path):
 
 def test_manifests_are_written_by_atomic_rename(tmp_path, monkeypatch):
     store = FileStore(tmp_path / "store", ttl_seconds=3600)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
     replacements = []
     original_replace = os.replace
 
@@ -84,7 +84,7 @@ def test_lookup_rejects_traversal_and_missing_manifests(tmp_path):
 
 def test_expired_upload_and_job_are_removed_without_sqlite(tmp_path):
     store = FileStore(tmp_path / "store", ttl_seconds=10)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
     store.save_upload(parsed)
     job = store.create_job(parsed.upload_id, "iforest", ("name",), now=100.0)
 
@@ -98,7 +98,7 @@ def test_expired_upload_and_job_are_removed_without_sqlite(tmp_path):
 
 def test_status_transitions_require_monotonic_progress_and_remove_failed_result(tmp_path):
     store = FileStore(tmp_path / "store", ttl_seconds=3600)
-    parsed = parsed_upload(tmp_path)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
     store.save_upload(parsed)
     job = store.create_job(parsed.upload_id, "iforest", ("name",), now=100.0)
     result = store.result_path(job.job_id)
@@ -111,4 +111,53 @@ def test_status_transitions_require_monotonic_progress_and_remove_failed_result(
         store.update_job(job.job_id, status="running", progress_rows=1)
     failed = store.update_job(job.job_id, status="failed", progress_rows=2, error_code="processing_failed")
     assert failed.error_code == "processing_failed"
+    assert not result.exists()
+
+
+def test_save_upload_rejects_predictable_identifier(tmp_path):
+    store = FileStore(tmp_path / "store", ttl_seconds=3600)
+
+    with pytest.raises(CsvValidationError):
+        store.save_upload(parsed_upload(tmp_path, "a" * 32))
+
+
+def test_duplicate_upload_save_preserves_existing_upload(tmp_path):
+    store = FileStore(tmp_path / "store", ttl_seconds=3600)
+    upload_id = store.new_upload_id()
+    first = parsed_upload(tmp_path, upload_id)
+    store.save_upload(first)
+    first_source = store.get_upload(upload_id).source_path.read_bytes()
+    second_source = tmp_path / "second.csv"
+    second_source.write_text("name,value\nb,2\n", encoding="utf-8")
+    second = ParsedUpload(
+        upload_id=upload_id, path=second_source, headers=("name", "value"),
+        canonical_headers=("name", "value"), row_count=1, size_bytes=15, expires_at=3_700.0,
+    )
+
+    with pytest.raises(CsvValidationError):
+        store.save_upload(second)
+
+    assert store.get_upload(upload_id).source_path.read_bytes() == first_source
+    assert second_source.exists()
+
+
+def test_failed_result_is_deleted_before_failed_manifest_is_persisted(tmp_path, monkeypatch):
+    store = FileStore(tmp_path / "store", ttl_seconds=3600)
+    parsed = parsed_upload(tmp_path, store.new_upload_id())
+    store.save_upload(parsed)
+    job = store.create_job(parsed.upload_id, "iforest", ("name",), now=100.0)
+    store.update_job(job.job_id, status="running", progress_rows=0)
+    result = store.result_path(job.job_id)
+    result.write_text("partial", encoding="utf-8")
+    original_unlink = Path.unlink
+
+    def assert_running_then_unlink(path, *args, **kwargs):
+        if path == result:
+            assert store.get_job(job.job_id).status == "running"
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", assert_running_then_unlink)
+    store.update_job(job.job_id, status="failed", progress_rows=0, error_code="processing_failed")
+
+    assert store.get_job(job.job_id).status == "failed"
     assert not result.exists()

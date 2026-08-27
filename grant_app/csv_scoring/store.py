@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
 import os
 import secrets
 import shutil
@@ -54,11 +56,13 @@ class FileStore:
         self.ttl_seconds = ttl_seconds
         self._uploads = self.root / "uploads"
         self._jobs = self.root / "jobs"
+        self._upload_id_key_path = self.root / ".upload-id-key"
         try:
             self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
             self.root.chmod(0o700)
             self._uploads.mkdir(mode=0o700, exist_ok=True)
             self._jobs.mkdir(mode=0o700, exist_ok=True)
+            self._upload_id_key = self._load_upload_id_key()
         except OSError as error:
             raise CsvValidationError("Temporary storage unavailable") from error
 
@@ -67,8 +71,10 @@ class FileStore:
         upload_id = self._upload_id(parsed.upload_id)
         directory = self._uploads / upload_id
         source = directory / "source.csv"
+        owns_directory = False
         try:
             directory.mkdir(mode=0o700)
+            owns_directory = True
             os.replace(parsed.path, source)
             self._write_manifest(
                 directory / "manifest.json",
@@ -82,8 +88,15 @@ class FileStore:
                 },
             )
         except (OSError, TypeError, ValueError) as error:
-            self._remove_directory(directory)
+            if owns_directory:
+                self._remove_directory(directory)
             raise CsvValidationError("Temporary storage unavailable") from error
+
+    def new_upload_id(self) -> str:
+        """Issue an authenticated, random identifier for a staged upload."""
+        nonce = secrets.token_hex(16)
+        signature = hmac.new(self._upload_id_key, nonce.encode("ascii"), hashlib.sha256).hexdigest()
+        return f"u{nonce}{signature}"
 
     def get_upload(self, upload_id: str) -> UploadManifest:
         directory = self._upload_directory(upload_id)
@@ -172,9 +185,9 @@ class FileStore:
             error_code=error_code if status == "failed" else None,
             expires_at=current.expires_at,
         )
-        self._write_manifest(self._job_directory(job_id) / "manifest.json", self._job_payload(updated))
         if status == "failed":
             self.result_path(job_id).unlink(missing_ok=True)
+        self._write_manifest(self._job_directory(job_id) / "manifest.json", self._job_payload(updated))
         return updated
 
     def result_path(self, job_id: str) -> Path:
@@ -200,12 +213,12 @@ class FileStore:
         return removed
 
     def _upload_id(self, upload_id: str) -> str:
-        if not self._valid_identifier(upload_id):
+        if not self._valid_upload_identifier(upload_id):
             raise CsvValidationError("CSV validation failed")
         return upload_id
 
     def _upload_directory(self, upload_id: str) -> Path:
-        if not self._valid_identifier(upload_id):
+        if not self._valid_upload_identifier(upload_id):
             raise UploadNotFoundError("Upload not found")
         return self._safe_child(self._uploads, upload_id, UploadNotFoundError)
 
@@ -219,6 +232,34 @@ class FileStore:
         return isinstance(identifier, str) and 16 <= len(identifier) <= 128 and all(
             character in _IDENTIFIER_ALPHABET for character in identifier
         )
+
+    def _valid_upload_identifier(self, identifier: str) -> bool:
+        if not isinstance(identifier, str) or len(identifier) != 97 or not identifier.startswith("u"):
+            return False
+        nonce = identifier[1:33]
+        signature = identifier[33:]
+        if any(character not in "0123456789abcdef" for character in nonce + signature):
+            return False
+        expected = hmac.new(
+            self._upload_id_key, nonce.encode("ascii"), hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(signature, expected)
+
+    def _load_upload_id_key(self) -> bytes:
+        try:
+            return self._upload_id_key_path.read_bytes()
+        except FileNotFoundError:
+            key = secrets.token_bytes(32)
+            descriptor = os.open(self._upload_id_key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            try:
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(key)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except BaseException:
+                self._upload_id_key_path.unlink(missing_ok=True)
+                raise
+            return key
 
     @staticmethod
     def _safe_child(base: Path, identifier: str, error_type):
@@ -241,6 +282,7 @@ class FileStore:
             ("running", "running"),
             ("running", "completed"),
             ("running", "failed"),
+            ("failed", "failed"),
         }
 
     @staticmethod

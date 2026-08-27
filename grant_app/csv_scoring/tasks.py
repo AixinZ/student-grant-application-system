@@ -39,7 +39,7 @@ class TaskExecutor:
             log_exception_context(_LOGGER, "csv_scoring_task_failed", error)
             try:
                 current = self._store.get_job(job_id)
-                if current.status in ("queued", "running"):
+                if current.status != "completed":
                     self._store.update_job(
                         job_id,
                         status="failed",
