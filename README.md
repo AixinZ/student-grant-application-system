@@ -64,6 +64,53 @@ The tests use isolated temporary SQLite databases and do not change the local
 operator database. For browser acceptance testing, follow
 [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
 
+## CSV scoring
+
+CSV scoring is a separate local workflow. After starting the server, open
+[http://127.0.0.1:5000/csv-scoring](http://127.0.0.1:5000/csv-scoring), choose a
+comma-delimited UTF-8 CSV (UTF-8 with BOM is also accepted), select one or more
+original columns for the download, choose an available model, then wait for the
+download link. Test the full page using the CSV Scoring section of
+[`docs/manual-test-checklist.md`](docs/manual-test-checklist.md), including the
+keyboard-only and Excel-open checks.
+
+The input file must have one header row, contain 100,000 through 250,000 data
+rows, and be no larger than 100 MB. It must not already include a `SCORE`
+header. A successful result is UTF-8 with BOM CSV, preserves source row order,
+and contains the selected original columns followed by exactly one final
+`SCORE` column. `SCORE` uses six decimal places and is fixed risk evidence from
+`0` to `1`: low risk at `0` and high risk at `1`. Labels and scores are
+screening evidence, not proof of fraud; operators must use appropriate review
+and any required decision process rather than treating a score as a finding.
+
+Uploads and generated results are private temporary files, outside SQLite, and
+are removed after one hour. Do not upload production data to an instance whose
+temporary directory is not appropriately access-restricted. A failed scoring
+job provides no partial download.
+
+### Experimental Isolation Forest artifact
+
+The only currently supported artifact is the **Experimental Isolation Forest**.
+It is not a production fraud decision model. To make a locally approved
+artifact available to the server, set `CSV_SCORING_MODEL_DIR` to the directory
+that contains both `isolation_forest_model.joblib` and `iforest_manifest.json`,
+then start the app:
+
+```bash
+export CSV_SCORING_MODEL_DIR=/absolute/path/to/approved-iforest-artifact
+.venv/bin/flask --app grant_app:create_app run --host 127.0.0.1
+```
+
+Keep the artifact directory private. If it is unavailable or invalid, the page
+shows no available model and no artifact location is exposed to the browser.
+When registering future supervised A/B or unsupervised D artifacts, add their
+server-side `ModelSpec` and adapter/manifest validation with a stable model ID,
+operator-facing display name, required-column contract, score direction, and
+training-time calibration. Configure their paths only on the server; API and
+page responses must expose only the stable ID, display name, version, and
+required columns—never filesystem paths, manifest contents, or raw model
+errors.
+
 ## Local data and logs
 
 The default database is `instance/student_grants.sqlite`. It contains the

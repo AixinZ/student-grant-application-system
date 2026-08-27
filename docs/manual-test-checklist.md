@@ -85,6 +85,33 @@ Degree`, marital status `Single`, dependents `0`, and province `British Columbia
 - [ ] Confirm both outcomes convey their decision with text (`Approved` or `Not
   Approved`), so the meaning is understandable without relying on badge color.
 
+## CSV scoring
+
+- [ ] Open `/csv-scoring` from the local navigation. Complete the entire
+  upload, selected-column, model-selection, scoring, and download flow using
+  only the keyboard (Tab/Shift-Tab, Enter, and Space). Confirm the drop zone,
+  fields, selector, status, and download link have a logical focus order and
+  visible focus indicator.
+- [ ] Upload invalid CSVs: a file over 100 MB, a file with fewer than 100,000
+  rows, a file with more than 250,000 rows, a file with a duplicate or `SCORE`
+  header, and an invalid delimiter or encoding. Confirm each is rejected with a
+  safe error and no source values, filename, local path, or partial result.
+- [ ] Upload a representative large CSV within the 100,000–250,000 row limit
+  that includes every required model header. Confirm the page reports progress,
+  completes, and preserves source row order.
+- [ ] Select a non-contiguous subset of original fields. Download the result,
+  open it in Excel, and confirm it is readable without an encoding prompt. The
+  exact output columns are the selected original columns followed by `SCORE`;
+  confirm `SCORE` is the final column, has six decimal places, stays in `0..1`,
+  and represents low risk at `0` and high risk at `1`.
+- [ ] Confirm the available Isolation Forest choice is labelled experimental.
+  Treat its scores as screening evidence, not proof of fraud; do not use a
+  label or score as a fraud finding.
+- [ ] Record the upload and job identifiers. After one-hour temporary
+  retention (or an injected test clock), confirm source and result cleanup:
+  metadata, status, and download URLs return not found, and no temporary files
+  remain. Confirm cleanup also leaves no partial result after a forced failure.
+
 ## Log privacy and local persistence
 
 - [ ] After a normal fictional submission and a deliberately invalid one, inspect

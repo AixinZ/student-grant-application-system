@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{# Provides an accessible browser client for the server-side CSV scoring API. #}
+
+{% block title %}CSV Scoring · Student Grant Applications{% endblock %}
+
+{% block content %}
+  <h2>CSV Scoring</h2>
+  <p>Upload a CSV, choose the columns to include in the download, and select one available model. <code>SCORE</code> is 0..1 risk evidence, not proof of fraud.</p>
+
+  <section id="csv-scoring-error" class="error-summary" role="alert" hidden tabindex="-1"></section>
+
+  <form id="csv-scoring-form" class="application-form" novalidate>
+    <input id="csv-scoring-csrf" type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-field">
+      <label for="csv-scoring-file">CSV file</label>
+      <input id="csv-scoring-file" name="file" type="file" accept=".csv,text/csv" aria-describedby="csv-scoring-file-help">
+      <p id="csv-scoring-file-help">Drag a CSV file to the area below or choose one from your device.</p>
+      <div id="csv-scoring-drop-zone" role="button" tabindex="0" aria-label="Drop a CSV file here or press Enter to choose a file">
+        Drop CSV file here
+      </div>
+    </div>
+
+    <fieldset id="csv-scoring-fields" class="form-field" disabled aria-live="polite" aria-describedby="csv-scoring-fields-help">
+      <legend>Columns to include in the scored download</legend>
+      <p id="csv-scoring-fields-help">Upload a CSV to choose one or more output columns.</p>
+      <div id="csv-scoring-field-options"></div>
+    </fieldset>
+
+    <div class="form-field">
+      <label for="csv-scoring-model">Scoring model</label>
+      <select id="csv-scoring-model" required>
+        {% for model in models %}
+          <option value="{{ model.model_id }}">{{ model.display_name }} ({{ model.version }})</option>
+        {% else %}
+          <option value="" disabled selected>No scoring models are available</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-actions">
+      <button id="csv-scoring-submit" type="submit" disabled>Score CSV</button>
+    </div>
+  </form>
+
+  <section aria-labelledby="csv-scoring-status-heading">
+    <h3 id="csv-scoring-status-heading">Task status</h3>
+    <p id="csv-scoring-status" aria-live="polite">Choose a CSV to begin.</p>
+    <a id="csv-scoring-download" href="#" hidden>Download scored CSV</a>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/csv-scoring-form.js') }}" defer></script>
+{% endblock %}

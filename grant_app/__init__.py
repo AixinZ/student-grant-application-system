@@ -1,8 +1,12 @@
 """Create and configure the Flask app, its integrations, and safe error handling."""
 
 from pathlib import Path
+import atexit
+import json
+import os
+import time
 
-from flask import Flask, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_wtf.csrf import CSRFError
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -19,6 +23,81 @@ from .migrations import (
     MigrationError,
     ensure_sqlite_schema,
 )
+
+
+def _is_csv_scoring_request() -> bool:
+    """Whether the current request targets the CSV scoring API."""
+    return request.path.startswith("/csv-scoring/")
+
+
+def _configured_csv_scoring_registry(model_dir: object):
+    """Register the configured experimental artifact without exposing its paths."""
+    from .csv_scoring.adapters.isolation_forest import IsolationForestAdapter
+    from .csv_scoring.models import ModelSpec
+    from .csv_scoring.registry import ModelRegistry
+
+    registry = ModelRegistry()
+    if not model_dir:
+        return registry
+    directory = Path(model_dir)
+    manifest_path = directory / "iforest_manifest.json"
+    adapter = IsolationForestAdapter.from_artifact(
+        directory / "isolation_forest_model.joblib", manifest_path
+    )
+    if not adapter.required_headers:
+        return registry
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        model_id = payload["model_id"]
+        version = payload["version"]
+        if model_id != "experimental-iforest" or not isinstance(version, str) or not version:
+            return registry
+        registry.register(
+            ModelSpec(
+                model_id=model_id,
+                display_name="Experimental Isolation Forest",
+                model_type="unsupervised",
+                required_columns=adapter.required_headers,
+                version=version,
+                adapter=adapter,
+            )
+        )
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return registry
+    return registry
+
+
+def _initialize_csv_scoring(app: Flask) -> None:
+    """Create private CSV scoring infrastructure from application config."""
+    from .csv_scoring.errors import CsvValidationError
+    from .csv_scoring.store import FileStore
+    from .csv_scoring.tasks import TaskExecutor
+
+    store = app.config.get("CSV_SCORING_STORE")
+    if store is None:
+        try:
+            store = FileStore(
+                Path(app.config["CSV_SCORING_TEMP_DIR"]) / "grant-app-csv-scoring",
+                ttl_seconds=app.config["CSV_SCORING_TTL_SECONDS"],
+            )
+        except CsvValidationError:
+            raise RuntimeError("CSV scoring temporary storage is unavailable") from None
+    registry = app.config.get("CSV_SCORING_MODEL_REGISTRY")
+    if registry is None:
+        registry = _configured_csv_scoring_registry(
+            app.config["CSV_SCORING_MODEL_DIR"]
+        )
+    executor = app.config.get("CSV_SCORING_TASK_EXECUTOR")
+    owns_executor = executor is None
+    if executor is None:
+        executor = TaskExecutor(store)
+
+    app.config["CSV_SCORING_STORE"] = store
+    app.config["CSV_SCORING_MODEL_REGISTRY"] = registry
+    app.config["CSV_SCORING_TASK_EXECUTOR"] = executor
+    store.cleanup_expired(time.time())
+    if owns_executor:
+        atexit.register(executor.shutdown)
 
 
 def _validate_sqlite_database_uri(database_uri: object) -> None:
@@ -64,6 +143,8 @@ def _register_error_handlers(app: Flask) -> None:
         Returns:
             A rendered error page paired with HTTP status 400.
         """
+        if _is_csv_scoring_request():
+            return jsonify(error="invalid_request"), 400
         return render_template("errors/400.html"), 400
 
     @app.errorhandler(404)
@@ -76,6 +157,8 @@ def _register_error_handlers(app: Flask) -> None:
         Returns:
             A rendered error page paired with HTTP status 404.
         """
+        if _is_csv_scoring_request():
+            return jsonify(error="not_found"), 404
         return render_template("errors/404.html"), 404
 
     @app.errorhandler(413)
@@ -88,6 +171,8 @@ def _register_error_handlers(app: Flask) -> None:
         Returns:
             A rendered error page paired with HTTP status 413.
         """
+        if _is_csv_scoring_request():
+            return jsonify(error="file_too_large"), 413
         return render_template("errors/413.html"), 413
 
     @app.errorhandler(500)
@@ -110,6 +195,8 @@ def _register_error_handlers(app: Flask) -> None:
         log_exception_context(
             app.logger, "unexpected_server_error", original_error
         )
+        if _is_csv_scoring_request():
+            return jsonify(error="processing_failed"), 500
         return render_template("errors/500.html"), 500
 
     @app.errorhandler(Exception)
@@ -127,6 +214,8 @@ def _register_error_handlers(app: Flask) -> None:
             return error
         db.session.rollback()
         log_exception_context(app.logger, "unexpected_server_error", error)
+        if _is_csv_scoring_request():
+            return jsonify(error="processing_failed"), 500
         return render_template("errors/500.html"), 500
 
 
@@ -149,6 +238,12 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     """
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
+    # Resolve optional paths at factory time so deployment environment changes
+    # are respected even when the Config class was imported earlier.
+    if "CSV_SCORING_MODEL_DIR" in os.environ:
+        app.config["CSV_SCORING_MODEL_DIR"] = os.environ["CSV_SCORING_MODEL_DIR"]
+    if "CSV_SCORING_TEMP_DIR" in os.environ:
+        app.config["CSV_SCORING_TEMP_DIR"] = os.environ["CSV_SCORING_TEMP_DIR"]
     if test_config:
         app.config.update(test_config)
     if "APPROVAL_ENGINE" not in app.config:
@@ -160,6 +255,7 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     configure_logging(app)
     db.init_app(app)
+    _initialize_csv_scoring(app)
     csrf.init_app(app)
     with app.app_context():
         from . import models  # noqa: F401
