@@ -7,6 +7,8 @@ from .errors import (
     ScoringError,
     UploadNotFoundError,
 )
+from .parser import canonical_header, parse_upload, validate_selected_headers
+from .types import ParsedUpload
 
 __all__ = [
     "CsvValidationError",
@@ -14,4 +16,8 @@ __all__ = [
     "ModelUnavailableError",
     "ScoringError",
     "UploadNotFoundError",
+    "ParsedUpload",
+    "canonical_header",
+    "parse_upload",
+    "validate_selected_headers",
 ]
