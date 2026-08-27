@@ -1,6 +1,8 @@
 import io
+import json
 import time
 
+import joblib
 import pytest
 
 from grant_app import create_app
@@ -11,6 +13,13 @@ from grant_app.csv_scoring.registry import ModelRegistry
 class DeterministicAdapter:
     def score_rows(self, rows):
         return [0.25 for _ in rows]
+
+
+class TinyIsolationForest:
+    feature_names_in_ = ("account id", "amount")
+
+    def decision_function(self, rows):
+        return [0.0 for _ in rows]
 
 
 def scoring_app(tmp_path, **overrides):
@@ -188,6 +197,38 @@ def test_csv_scoring_oversized_request_uses_json_413_without_filename(tmp_path):
     assert response.status_code == 413
     assert response.get_json() == {"error": "file_too_large"}
     assert "very-private.csv" not in response.get_data(as_text=True)
+
+
+def test_default_registry_registers_the_configured_experimental_iforest(tmp_path):
+    model_dir = tmp_path / "models"
+    model_dir.mkdir()
+    joblib.dump(TinyIsolationForest(), model_dir / "isolation_forest_model.joblib")
+    (model_dir / "iforest_manifest.json").write_text(
+        json.dumps(
+            {
+                "model_id": "experimental-iforest",
+                "version": "1",
+                "required_headers": ["account id", "amount"],
+                "score_direction": "lower_is_higher_risk",
+                "calibration": {"low": -1.0, "high": 1.0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test-secret",
+            "WTF_CSRF_ENABLED": False,
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'default-registry.sqlite'}",
+            "CSV_SCORING_TEMP_DIR": str(tmp_path / "csv-scoring"),
+            "CSV_SCORING_MODEL_DIR": str(model_dir),
+        }
+    )
+
+    assert [model.model_id for model in app.config["CSV_SCORING_MODEL_REGISTRY"].list_available()] == [
+        "experimental-iforest"
+    ]
 
 
 def test_worker_failure_logs_only_sanitized_context_and_download_stays_unavailable(tmp_path, caplog):

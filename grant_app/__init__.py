@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import atexit
+import json
 import os
 import time
 
@@ -29,10 +30,46 @@ def _is_csv_scoring_request() -> bool:
     return request.path.startswith("/csv-scoring/")
 
 
+def _configured_csv_scoring_registry(model_dir: object):
+    """Register the configured experimental artifact without exposing its paths."""
+    from .csv_scoring.adapters.isolation_forest import IsolationForestAdapter
+    from .csv_scoring.models import ModelSpec
+    from .csv_scoring.registry import ModelRegistry
+
+    registry = ModelRegistry()
+    if not model_dir:
+        return registry
+    directory = Path(model_dir)
+    manifest_path = directory / "iforest_manifest.json"
+    adapter = IsolationForestAdapter.from_artifact(
+        directory / "isolation_forest_model.joblib", manifest_path
+    )
+    if not adapter.required_headers:
+        return registry
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        model_id = payload["model_id"]
+        version = payload["version"]
+        if model_id != "experimental-iforest" or not isinstance(version, str) or not version:
+            return registry
+        registry.register(
+            ModelSpec(
+                model_id=model_id,
+                display_name="Experimental Isolation Forest",
+                model_type="unsupervised",
+                required_columns=adapter.required_headers,
+                version=version,
+                adapter=adapter,
+            )
+        )
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return registry
+    return registry
+
+
 def _initialize_csv_scoring(app: Flask) -> None:
     """Create private CSV scoring infrastructure from application config."""
     from .csv_scoring.errors import CsvValidationError
-    from .csv_scoring.registry import ModelRegistry
     from .csv_scoring.store import FileStore
     from .csv_scoring.tasks import TaskExecutor
 
@@ -47,7 +84,9 @@ def _initialize_csv_scoring(app: Flask) -> None:
             raise RuntimeError("CSV scoring temporary storage is unavailable") from None
     registry = app.config.get("CSV_SCORING_MODEL_REGISTRY")
     if registry is None:
-        registry = ModelRegistry()
+        registry = _configured_csv_scoring_registry(
+            app.config["CSV_SCORING_MODEL_DIR"]
+        )
     executor = app.config.get("CSV_SCORING_TASK_EXECUTOR")
     owns_executor = executor is None
     if executor is None:
