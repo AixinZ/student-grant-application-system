@@ -103,6 +103,15 @@ def index():
     return redirect(url_for("web.application_new"))
 
 
+@web.get("/csv-scoring")
+def csv_scoring_new():
+    """Render the browser workflow for one server-side CSV scoring job."""
+    return render_template(
+        "csv_scoring/new.html",
+        models=current_app.config["CSV_SCORING_MODEL_REGISTRY"].list_available(),
+    )
+
+
 @web.route("/applications/new", methods=["GET", "POST"])
 def application_new():
     """Display the application form and process valid submissions.
