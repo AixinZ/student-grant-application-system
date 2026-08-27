@@ -85,10 +85,11 @@
     pollTimer = null;
   }
 
-  async function pollJob(jobId, attempts = 0) {
+  async function pollJob(jobId, uploadGeneration, attempts = 0) {
     try {
       const job = await fetch(`/csv-scoring/jobs/${encodeURIComponent(jobId)}`, { headers: csrfHeaders() })
         .then(responseJson);
+      if (uploadGeneration !== uploadRequest) return;
       status.textContent = `Status: ${job.status}. Rows processed: ${job.progress_rows}.`;
       if (job.status === "completed") {
         download.href = `/csv-scoring/jobs/${encodeURIComponent(jobId)}/download`;
@@ -104,8 +105,12 @@
         return;
       }
       if (attempts >= 120) throw new Error("processing_failed");
-      pollTimer = window.setTimeout(() => pollJob(jobId, attempts + 1), 1000);
+      pollTimer = window.setTimeout(
+        () => pollJob(jobId, uploadGeneration, attempts + 1),
+        1000,
+      );
     } catch (failure) {
+      if (uploadGeneration !== uploadRequest) return;
       submitting = false;
       updateSubmitState();
       showError(failure.message);
@@ -171,6 +176,7 @@
       return;
     }
     submitting = true;
+    const jobGeneration = uploadRequest;
     clearError();
     download.hidden = true;
     status.textContent = "Starting scoring task…";
@@ -181,9 +187,11 @@
         headers: { ...csrfHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ upload_id: uploadId, selected_fields: selectedFields(), model_id: model.value }),
       }).then(responseJson);
+      if (jobGeneration !== uploadRequest) return;
       status.textContent = `Status: ${job.status}. Rows processed: ${job.progress_rows}.`;
-      pollJob(job.job_id);
+      pollJob(job.job_id, jobGeneration);
     } catch (failure) {
+      if (jobGeneration !== uploadRequest) return;
       submitting = false;
       updateSubmitState();
       showError(failure.message);
