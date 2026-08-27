@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,9 @@ from grant_app.constants import Decision
 from grant_app.domain import ApplicationInput, ApprovalOutcome
 from grant_app.extensions import db
 from grant_app.models import Application
+
+
+MANUAL_CHECKLIST_PATH = Path(__file__).parents[1] / "docs/manual-test-checklist.md"
 
 
 VALID_PAYLOAD = {
@@ -297,6 +301,24 @@ def test_unconfigured_testing_app_removes_shared_file_handler_and_stops_writes(
             with application.app_context():
                 db.session.remove()
                 db.drop_all()
+
+
+def test_manual_checklist_covers_csv_scoring_accessibility_and_data_safety():
+    """Catch a release checklist that omits the CSV workflow's safety checks."""
+    checklist = MANUAL_CHECKLIST_PATH.read_text(encoding="utf-8").lower()
+
+    for required_text in (
+        "keyboard",
+        "100 mb",
+        "100,000",
+        "250,000",
+        "representative large csv",
+        "excel",
+        "selected original columns followed by `score`",
+        "one-hour",
+        "cleanup",
+    ):
+        assert required_text in checklist
 
 
 def test_header_keyboard_focus_uses_high_contrast_override(client):

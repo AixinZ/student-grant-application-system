@@ -34,3 +34,22 @@ def test_database_operations_follow_the_configured_sqlite_file():
     for paragraph in readme.split("\n\n"):
         if DEFAULT_DATABASE_PATH in paragraph:
             assert "default" in paragraph.lower()
+
+
+def test_readme_documents_csv_scoring_operator_contract():
+    """Catch an operator guide that omits CSV scoring's safety boundaries."""
+    readme = README_PATH.read_text(encoding="utf-8").lower()
+
+    for required_text in (
+        "http://127.0.0.1:5000/csv-scoring",
+        "100 mb",
+        "100,000 through 250,000",
+        "utf-8 with bom",
+        "six decimal places",
+        "low risk at `0` and high risk at `1`",
+        "one hour",
+        "experimental isolation forest",
+        "not proof of fraud",
+        "csv_scoring_model_dir",
+    ):
+        assert required_text in readme
