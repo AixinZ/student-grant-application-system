@@ -17,11 +17,11 @@ from ..parser import canonical_header
 class IsolationForestAdapter:
     """Score rows with a loaded artifact and immutable training calibration."""
 
-    pipeline: object
-    required_headers: tuple[str, ...]
-    low: float
-    high: float
-    reverse: bool
+    pipeline: object | None = None
+    required_headers: tuple[str, ...] = ()
+    low: float = 0.0
+    high: float = 1.0
+    reverse: bool = False
     chunk_size: int = 5_000
 
     @classmethod
@@ -41,14 +41,17 @@ class IsolationForestAdapter:
                 or direction not in ("higher_is_higher_risk", "lower_is_higher_risk")
             ):
                 raise ValueError
-            pipeline = joblib.load(Path(artifact_path))
-            stored_headers = cls._stored_headers(pipeline)
-            if stored_headers != required:
-                raise ValueError
             low = float(calibration["low"])
             high = float(calibration["high"])
             # Validate fixed bounds before admitting an artifact.
             normalize_score(low, low=low, high=high)
+        except Exception:
+            return cls()
+
+        try:
+            pipeline = joblib.load(Path(artifact_path))
+            if cls._stored_headers(pipeline) != required:
+                raise ValueError
             return cls(
                 pipeline=pipeline,
                 required_headers=required,
@@ -57,7 +60,21 @@ class IsolationForestAdapter:
                 reverse=direction == "lower_is_higher_risk",
             )
         except Exception:
-            raise ModelUnavailableError("Model unavailable") from None
+            return cls(
+                required_headers=required,
+                low=low,
+                high=high,
+                reverse=direction == "lower_is_higher_risk",
+            )
+
+    def is_available(self) -> bool:
+        """Whether this configured artifact loaded successfully."""
+        return self.pipeline is not None
+
+    @property
+    def availability_reason(self) -> str | None:
+        """Expose only a fixed route-safe availability status."""
+        return None if self.is_available() else "Model is unavailable"
 
     @staticmethod
     def _stored_headers(pipeline: object) -> tuple[str, ...]:
@@ -69,6 +86,8 @@ class IsolationForestAdapter:
     def score_rows(self, rows: Sequence[Mapping[str, object]]) -> Sequence[float]:
         """Return calibrated risk scores in deterministic manifest header order."""
         try:
+            if self.pipeline is None:
+                raise ModelUnavailableError("Model unavailable")
             scores: list[float] = []
             for start in range(0, len(rows), self.chunk_size):
                 chunk = rows[start : start + self.chunk_size]

@@ -37,9 +37,6 @@ class ModelRegistry:
             spec = self._specs[model_id]
         except (KeyError, TypeError):
             return "Model is unavailable"
-        reason = getattr(spec.adapter, "availability_reason", None)
-        if isinstance(reason, str) and reason:
-            return reason
         return None if self._is_available(spec) else "Model is unavailable"
 
     @staticmethod

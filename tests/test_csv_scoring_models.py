@@ -1,4 +1,4 @@
-import json
+from pathlib import Path
 
 import joblib
 import pytest
@@ -56,13 +56,14 @@ def test_registry_rejects_unknown_model_with_a_safe_error():
 
 def test_registry_omits_an_adapter_that_is_not_available():
     class UnavailableAdapter(StaticAdapter):
-        availability_reason = "Model is temporarily unavailable"
+        availability_reason = "/secret/models/iforest.joblib: missing"
 
     registry = ModelRegistry()
     registry.register(model_spec(UnavailableAdapter()))
 
     assert registry.list_available() == ()
-    assert registry.availability_reason("manual-review") == "Model is temporarily unavailable"
+    assert registry.availability_reason("manual-review") == "Model is unavailable"
+    assert "secret" not in registry.availability_reason("manual-review")
 
 
 def test_normalize_score_preserves_supervised_probability_direction():
@@ -90,27 +91,31 @@ def test_format_score_uses_six_decimal_places():
 
 def test_isolation_forest_adapter_loads_manifest_orders_columns_and_calibrates(tmp_path):
     artifact_path = tmp_path / "model.joblib"
-    manifest_path = tmp_path / "manifest.json"
     joblib.dump(TinyIsolationForest(), artifact_path)
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "model_id": "experimental-iforest",
-                "version": "1",
-                "required_headers": ["account id", "amount"],
-                "score_direction": "lower_is_higher_risk",
-                "calibration": {"low": -1.0, "high": 1.0},
-            }
-        )
-    )
+    manifest_path = Path(__file__).parent / "fixtures/csv_scoring/iforest_manifest.json"
 
     adapter = IsolationForestAdapter.from_artifact(artifact_path, manifest_path)
 
     assert adapter.score_rows(({"amount": 10, "account id": "A"},)) == [0.75]
 
 
-def test_isolation_forest_adapter_hides_artifact_load_details(tmp_path):
-    with pytest.raises(ModelUnavailableError) as error:
-        IsolationForestAdapter.from_artifact(tmp_path / "secret.joblib", tmp_path / "manifest.json")
+def test_unavailable_isolation_forest_adapter_can_be_registered_without_leaking_details():
+    manifest_path = Path(__file__).parent / "fixtures/csv_scoring/iforest_manifest.json"
+    adapter = IsolationForestAdapter.from_artifact(Path("/secret/iforest.joblib"), manifest_path)
+    registry = ModelRegistry()
+    registry.register(
+        ModelSpec(
+            model_id="experimental-iforest",
+            display_name="Experimental Isolation Forest",
+            model_type="unsupervised",
+            required_columns=("account id", "amount"),
+            version="1",
+            adapter=adapter,
+        )
+    )
 
-    assert "secret.joblib" not in str(error.value)
+    assert registry.list_available() == ()
+    assert registry.availability_reason("experimental-iforest") == "Model is unavailable"
+    with pytest.raises(ModelUnavailableError) as error:
+        registry.get("experimental-iforest")
+    assert "secret" not in str(error.value)
