@@ -1,6 +1,7 @@
 """Create and configure the Flask app, its integrations, and safe error handling."""
 
 from pathlib import Path
+import os
 
 from flask import Flask, render_template
 from flask_wtf.csrf import CSRFError
@@ -149,6 +150,12 @@ def create_app(test_config: dict[str, object] | None = None) -> Flask:
     """
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
+    # Resolve optional paths at factory time so deployment environment changes
+    # are respected even when the Config class was imported earlier.
+    if "CSV_SCORING_MODEL_DIR" in os.environ:
+        app.config["CSV_SCORING_MODEL_DIR"] = os.environ["CSV_SCORING_MODEL_DIR"]
+    if "CSV_SCORING_TEMP_DIR" in os.environ:
+        app.config["CSV_SCORING_TEMP_DIR"] = os.environ["CSV_SCORING_TEMP_DIR"]
     if test_config:
         app.config.update(test_config)
     if "APPROVAL_ENGINE" not in app.config:

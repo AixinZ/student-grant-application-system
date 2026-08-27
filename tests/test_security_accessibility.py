@@ -114,9 +114,11 @@ def test_missing_csrf_token_returns_safe_english_400_page(production_style_clien
     assert b'href="/applications/new"' in response.data
 
 
-def test_request_body_over_16_kib_returns_safe_413_page(production_style_client):
+def test_request_body_over_100_megabytes_returns_safe_413_page(
+    production_style_client,
+):
     response = production_style_client.post(
-        "/applications/new", data={"name": "A" * (17 * 1024)}
+        "/applications/new", data={"name": "A" * (101 * 1024 * 1024)}
     )
 
     assert response.status_code == 413

@@ -25,7 +25,7 @@ def test_create_app_uses_test_configuration(tmp_path):
     )
 
     assert app.config["TESTING"] is True
-    assert app.config["MAX_CONTENT_LENGTH"] == 16 * 1024
+    assert app.config["MAX_CONTENT_LENGTH"] == 100 * 1024 * 1024
     assert app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] is False
 
 
