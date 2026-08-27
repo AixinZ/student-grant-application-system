@@ -1,0 +1,7 @@
+{
+  "model_id": "experimental-iforest",
+  "version": "1",
+  "required_headers": ["account id", "amount"],
+  "score_direction": "lower_is_higher_risk",
+  "calibration": {"low": -1.0, "high": 1.0}
+}
