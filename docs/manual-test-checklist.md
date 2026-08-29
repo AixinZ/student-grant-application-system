@@ -92,15 +92,15 @@ Degree`, marital status `Single`, dependents `0`, and province `British Columbia
   button, and return to both **New Application** and **Application History**.
   Confirm all three navigation links and controls have a logical focus order
   and clear focus indicators.
-- [ ] Submit each invalid limit: blank, `9999`, `250001`, and a fractional value
-  such as `10000.5`. Confirm no download begins, the page returns an error, and
+- [ ] Submit each invalid limit: blank, `99`, `250001`, and a fractional value
+  such as `100.5`. Confirm no download begins, the page returns an error, and
   focus moves to the error summary; then activate the summary link and confirm
   focus moves to the row-count field.
-- [ ] Enter `10000` and select **Generate Excel File**. Confirm the button
+- [ ] Enter `100` and select **Generate Excel File**. Confirm the button
   becomes disabled while the form submits and a file named like
-  `synthetic_fraud_data_10000_YYYYMMDD.xlsx` downloads.
-- [ ] Open the 10,000-row workbook in a spreadsheet application. Confirm it has
-  one sheet, 10,001 total rows including the header, 19 columns, a frozen first
+  `synthetic_fraud_data_100_YYYYMMDD.xlsx` downloads.
+- [ ] Open the 100-row workbook in a spreadsheet application. Confirm it has
+  one sheet, 101 total rows including the header, 19 columns, a frozen first
   row, and readable, aligned data.
 - [ ] Confirm the headers are exactly `CLIENT_DEPENDENT_STATUS`,
   `DISABILITY_STATUS_IND`, `INSTITUTION_CITY`, `INSTITUTION_PROVINCE`,

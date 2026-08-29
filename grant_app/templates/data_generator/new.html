@@ -17,8 +17,8 @@
     {{ form.hidden_tag() }}
     <div class="form-field">
       {{ form.row_count.label }}
-      {{ form.row_count(required=true, min="10000", max="250000", step="1", inputmode="numeric", aria_invalid="true" if form.row_count.errors else "false", aria_describedby="row-count-help " ~ form.row_count.id ~ "-error" if form.row_count.errors else "row-count-help") }}
-      <p id="row-count-help">Enter between 10,000 and 250,000 rows. Larger files may take longer.</p>
+      {{ form.row_count(required=true, min="100", max="250000", step="1", inputmode="numeric", aria_invalid="true" if form.row_count.errors else "false", aria_describedby="row-count-help " ~ form.row_count.id ~ "-error" if form.row_count.errors else "row-count-help") }}
+      <p id="row-count-help">Enter between 100 and 250,000 rows. Larger files may take longer.</p>
       {% if form.row_count.errors %}<div id="{{ form.row_count.id }}-error" class="field-error">{% for error in form.row_count.errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
     </div>
     <div class="form-actions"><button type="submit">Generate Excel File</button></div>

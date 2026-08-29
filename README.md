@@ -55,7 +55,7 @@ migrated. To stop the server, return to its terminal and press `Ctrl-C`.
 ## Generate synthetic screening data
 
 Open **Data Generator** from the header navigation. Enter a whole-number row
-count from **10,000** through **250,000**, then select **Generate Excel File** to
+count from **100** through **250,000**, then select **Generate Excel File** to
 download the XLSX. The browser downloads an Excel workbook containing the
 requested number of synthetic student-grant records.
 

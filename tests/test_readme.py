@@ -10,8 +10,7 @@ CUSTOM_DATABASE_PATH = "/absolute/path/to/student_grants.sqlite"
 def test_readme_documents_data_generator_limits_and_download():
     contents = README_PATH.read_text(encoding="utf-8")
     assert "Data Generator" in contents
-    assert "10,000" in contents
-    assert "250,000" in contents
+    assert "from **100** through **250,000**" in contents
     assert "Fraud Label" in contents
 
 

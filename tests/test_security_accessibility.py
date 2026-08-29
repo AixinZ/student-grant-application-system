@@ -188,14 +188,14 @@ def test_data_generator_page_has_accessible_form_and_navigation(client):
     assert b'href="/data-generator"' in response.data
     assert b'id="data-generator-form"' in response.data
     assert b'id="row-count-help"' in response.data
-    assert b'min="10000"' in response.data
+    assert b'min="100"' in response.data
     assert b'max="250000"' in response.data
     assert b'step="1"' in response.data
     assert b'<script src="/static/js/data-generator-form.js" defer></script>' in response.data
 
 
 def test_invalid_generator_form_links_summary_to_row_count(client):
-    response = client.post("/data-generator", data={"row_count": "9999"})
+    response = client.post("/data-generator", data={"row_count": "99"})
 
     assert response.status_code == 422
     assert b'id="error-summary"' in response.data

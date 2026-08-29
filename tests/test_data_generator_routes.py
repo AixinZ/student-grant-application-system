@@ -22,22 +22,22 @@ def test_get_data_generator_page(client):
 
 
 def test_invalid_count_returns_422_without_download(client):
-    response = client.post("/data-generator", data={"row_count": "9999"})
+    response = client.post("/data-generator", data={"row_count": "99"})
 
     assert response.status_code == 422
-    assert b"between 10,000 and 250,000" in response.data
+    assert b"between 100 and 250,000" in response.data
     assert "attachment" not in response.headers.get("Content-Disposition", "")
 
 
 def test_minimum_count_downloads_valid_xlsx(client):
-    response = client.post("/data-generator", data={"row_count": "10000"})
+    response = client.post("/data-generator", data={"row_count": "100"})
 
     assert response.status_code == 200
     assert (
         response.mimetype
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    assert "synthetic_fraud_data_10000_" in response.headers["Content-Disposition"]
+    assert "synthetic_fraud_data_100_" in response.headers["Content-Disposition"]
     with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
         assert archive.testzip() is None
     response.close()

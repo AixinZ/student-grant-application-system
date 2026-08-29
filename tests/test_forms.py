@@ -122,14 +122,14 @@ def test_to_domain_requires_successful_validation():
         form.to_domain()
 
 
-@pytest.mark.parametrize("value", ["10000", "250000"])
+@pytest.mark.parametrize("value", ["100", "250000"])
 def test_data_generator_form_accepts_inclusive_limits(value):
     form = DataGeneratorForm(data={"row_count": value})
 
     assert form.validate()
 
 
-@pytest.mark.parametrize("value", ["", "9999", "250001", "10.5", "many"])
+@pytest.mark.parametrize("value", ["", "99", "250001", "10.5", "many"])
 def test_data_generator_form_rejects_invalid_counts(value):
     form = DataGeneratorForm(data={"row_count": value})
 
